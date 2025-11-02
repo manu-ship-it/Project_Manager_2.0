@@ -7,9 +7,6 @@ import { supabase } from '@/lib/supabase'
 import { ProjectTasksList } from '@/components/project/ProjectTasksList'
 import { JoineryItemsList } from '@/components/project/JoineryItemsList'
 import { MaterialsList } from '@/components/project/MaterialsList'
-import { useProjectTasks } from '@/hooks/useProjectTasks'
-import { useJoineryItems } from '@/hooks/useJoineryItems'
-import { useMaterials } from '@/hooks/useMaterials'
 
 interface ProjectDetailModalProps {
   project: Project
@@ -21,9 +18,6 @@ interface ProjectDetailModalProps {
 export function ProjectDetailModal({ project, onClose, onEdit, onDelete }: ProjectDetailModalProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks' | 'joinery' | 'materials'>('overview')
-  const { data: tasks = [], refetch: refreshTasks } = useProjectTasks(project.id)
-  const { data: joineryItems = [], refetch: refreshItems } = useJoineryItems(project.id)
-  const { data: materials = [], refetch: refreshMaterials } = useMaterials(project.id)
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -331,24 +325,18 @@ export function ProjectDetailModal({ project, onClose, onEdit, onDelete }: Proje
             <div>
               <ProjectTasksList
                 projectId={project.id}
-                tasks={tasks}
-                onTasksChange={() => refreshTasks()}
               />
             </div>
           ) : activeTab === 'joinery' ? (
             <div>
               <JoineryItemsList
                 projectId={project.id}
-                items={joineryItems}
-                onItemsChange={() => refreshItems()}
               />
             </div>
           ) : (
             <div>
               <MaterialsList
                 projectId={project.id}
-                materials={materials}
-                onMaterialsChange={() => refreshMaterials()}
               />
             </div>
           )}
