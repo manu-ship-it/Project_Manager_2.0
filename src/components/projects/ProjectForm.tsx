@@ -68,12 +68,12 @@ export function ProjectForm({ project, onClose, onSuccess }: ProjectFormProps) {
         await updateProject.mutateAsync({
           id: project.id,
           ...data,
-          install_commencement_date: data.install_commencement_date || null,
+          install_commencement_date: data.install_commencement_date || '',
         })
       } else {
         await createProject.mutateAsync({
           ...data,
-          install_commencement_date: data.install_commencement_date || null,
+          install_commencement_date: data.install_commencement_date || '',
           date_created: new Date().toISOString(),
         })
       }
