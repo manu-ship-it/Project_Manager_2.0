@@ -155,7 +155,7 @@ export function ProjectDetailModal({ project, onClose, onEdit, onDelete }: Proje
               }`}
             >
               <CheckSquare className="h-4 w-4" />
-              <span>Tasks ({tasks.length})</span>
+              <span>Tasks</span>
             </button>
             <button
               onClick={() => setActiveTab('joinery')}
@@ -166,7 +166,7 @@ export function ProjectDetailModal({ project, onClose, onEdit, onDelete }: Proje
               }`}
             >
               <Package className="h-4 w-4" />
-              <span>Joinery ({joineryItems.length})</span>
+              <span>Joinery</span>
             </button>
             <button
               onClick={() => setActiveTab('materials')}
@@ -177,7 +177,7 @@ export function ProjectDetailModal({ project, onClose, onEdit, onDelete }: Proje
               }`}
             >
               <Hammer className="h-4 w-4" />
-              <span>Materials ({materials.length})</span>
+              <span>Materials</span>
             </button>
           </nav>
         </div>
