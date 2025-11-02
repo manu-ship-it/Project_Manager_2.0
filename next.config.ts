@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
     // Don't fail build on TypeScript errors (you can set this to false if you want strict checking)
     ignoreBuildErrors: false,
   },
+  // Ensure CSS and static assets are properly generated
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
+  // Ensure proper handling of static assets
+  poweredByHeader: false,
 };
 
 export default nextConfig;
