@@ -44,7 +44,7 @@ export function JoineryItemForm({ projectId, onClose, onSuccess }: JoineryItemFo
       await createJoineryItem.mutateAsync({
         ...data,
         project_id: projectId,
-        install_commencement_date: data.install_commencement_date || null,
+        install_commencement_date: data.install_commencement_date || '',
         shop_drawings_approved: false,
         board_ordered: false,
         hardware_ordered: false,
