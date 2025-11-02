@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, User, Phone, Mail, Trash2, X } from 'lucide-react'
-import { useInstallers, useAssignProjectInstaller, useRemoveProjectInstaller } from '@/hooks/useInstallers'
-import { useProjectInstallers } from '@/hooks/useProjectInstallers'
+import { useInstallers, useAssignProjectInstaller, useRemoveProjectInstaller, useProjectInstallers } from '@/hooks/useInstallers'
 
 interface InstallerAssignmentProps {
   projectId: string
@@ -11,8 +10,8 @@ interface InstallerAssignmentProps {
 
 export function InstallerAssignment({ projectId }: InstallerAssignmentProps) {
   const [showAddForm, setShowAddForm] = useState(false)
-  const { data: installers, isLoading: installersLoading } = useInstallers()
-  const { data: projectInstallers, isLoading: projectInstallersLoading } = useProjectInstallers(projectId)
+  const { data: installers = [], isLoading: installersLoading } = useInstallers()
+  const { data: projectInstallers = [], isLoading: projectInstallersLoading } = useProjectInstallers(projectId)
 
   if (installersLoading || projectInstallersLoading) {
     return (
