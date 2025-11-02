@@ -51,10 +51,10 @@ export function MaterialForm({ projectId, material, onClose, onSuccess }: Materi
       const materialData = {
         project_id: projectId,
         material_name: formData.material_name.trim(),
-        thickness: formData.thickness ? parseFloat(formData.thickness.toString()) : null,
-        board_size: formData.board_size.trim() || null,
+        thickness: formData.thickness ? parseFloat(formData.thickness.toString()) : 0,
+        board_size: formData.board_size.trim() || '',
         quantity: formData.quantity,
-        supplier: formData.supplier.trim() || null,
+        supplier: formData.supplier.trim() || '',
       }
 
       if (material) {
