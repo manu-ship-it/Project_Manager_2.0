@@ -21,9 +21,9 @@ export function InstallerAssignment({ projectId }: InstallerAssignmentProps) {
     )
   }
 
-  const assignedInstallers = projectInstallers?.map(pi => 
-    installers?.find(installer => installer.id === pi.installer_id)
-  ).filter(Boolean) || []
+  const assignedInstallers = (projectInstallers || []).map(pi => 
+    (installers || []).find(installer => installer.id === pi.installer_id)
+  ).filter((installer): installer is NonNullable<typeof installer> => installer !== undefined)
 
   return (
     <div className="space-y-6">
