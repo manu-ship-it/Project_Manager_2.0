@@ -104,14 +104,14 @@ export function VoiceAssistant({ onClose, onProjectUpdate }: VoiceAssistantProps
 CRITICAL: You have access to functions that directly interact with the project database. YOU MUST USE THESE FUNCTIONS to perform actions. Do not just ask questions - actually execute the functions when users request actions.
 
 IMPORTANT RULES:
-1. When a user wants to CREATE a project, you MUST call the create_project function with the information provided. If you're missing required fields (client name or project name), ask ONLY for those specific missing fields, then immediately call the function once you have them.
+1. When a user wants to CREATE a project, you MUST collect ALL required fields before calling create_project: client name, project name, project address, overall project budget, project status, priority level, and install commencement date. If install commencement date is missing, use today's date in YYYY-MM-DD format. Ask for missing information, then immediately call the function once ALL fields are collected.
 2. When a user wants to UPDATE a project, you MUST call the update_project function. Use project_number if provided, otherwise try project_name or client name to find it.
 3. When a user asks about a project, you MUST call get_project or list_projects function to retrieve the actual data from the database.
 4. Do NOT give generic responses or ask multiple questions. Execute the functions immediately when you have the minimum required information.
 5. After executing a function, report back what actually happened using the function results.
 
 AVAILABLE FUNCTIONS (use these, don't just talk about them):
-- create_project: Creates a new project in the database. REQUIRES: client name, project name. Optional: address, budget, status (planning/in_progress/completed/on_hold), priority (low/medium/high).
+- create_project: Creates a new project in the database. REQUIRES ALL FIELDS: client name, project name, project address, overall project budget (number), project status (planning/in_progress/completed/on_hold), priority level (low/medium/high), install commencement date (YYYY-MM-DD format). If install commencement date is not provided, it will default to today's date.
 - update_project: Updates an existing project in the database. REQUIRES: project_number to identify the project.
 - get_project: Retrieves project details from the database by project_number or project_name.
 - list_projects: Lists projects from the database. Can filter by status or client.
@@ -132,18 +132,20 @@ Do not engage in any conversation that is not about the projects or the business
       {
         type: 'function',
         name: 'create_project',
-        description: 'IMPORTANT: This function creates a new project in the database. You MUST call this when users want to create a project. Requires client name and project name. Optional: address, budget, status, priority.',
+        description: 'IMPORTANT: This function creates a new project in the database. You MUST call this when users want to create a project. ALL fields are required. If install_commencement_date is not provided, it defaults to today\'s date.',
         parameters: {
           type: 'object',
           properties: {
-            client: { type: 'string', description: 'Client name' },
-            project_name: { type: 'string', description: 'Project name or description' },
-            project_address: { type: 'string', description: 'Project address' },
-            overall_project_budget: { type: 'number', description: 'Project budget in dollars' },
-            project_status: { type: 'string', enum: ['planning', 'in_progress', 'completed', 'on_hold'], description: 'Project status' },
-            priority_level: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Priority level' },
+            client: { type: 'string', description: 'Client name (REQUIRED)' },
+            project_name: { type: 'string', description: 'Project name or description (REQUIRED)' },
+            project_address: { type: 'string', description: 'Project address (REQUIRED)' },
+            overall_project_budget: { type: 'number', description: 'Project budget in dollars (REQUIRED)' },
+            project_status: { type: 'string', enum: ['planning', 'in_progress', 'completed', 'on_hold'], description: 'Project status (REQUIRED)' },
+            priority_level: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Priority level (REQUIRED)' },
+            install_commencement_date: { type: 'string', description: 'Install commencement date in YYYY-MM-DD format. If not provided, defaults to today\'s date.' },
+            install_duration: { type: 'number', description: 'Install duration in days (REQUIRED, default to 0 if not specified)' },
           },
-          required: ['client', 'project_name'],
+          required: ['client', 'project_name', 'project_address', 'overall_project_budget', 'project_status', 'priority_level'],
         },
       },
       {
@@ -881,10 +883,30 @@ Do not engage in any conversation that is not about the projects or the business
   }
 
   const createProjectFunction = async (args: any) => {
-    const { client, project_name, project_address, overall_project_budget, project_status, priority_level } = args
+    const { 
+      client, 
+      project_name, 
+      project_address, 
+      overall_project_budget, 
+      project_status, 
+      priority_level,
+      install_commencement_date,
+      install_duration
+    } = args
 
-    if (!client || !project_name) {
-      return { error: 'Client name and project name are required' }
+    // Validate all required fields
+    const missingFields: string[] = []
+    if (!client || client.trim() === '') missingFields.push('client name')
+    if (!project_name || project_name.trim() === '') missingFields.push('project name')
+    if (!project_address || project_address.trim() === '') missingFields.push('project address')
+    if (overall_project_budget === undefined || overall_project_budget === null) missingFields.push('overall project budget')
+    if (!project_status) missingFields.push('project status')
+    if (!priority_level) missingFields.push('priority level')
+
+    if (missingFields.length > 0) {
+      return { 
+        error: `Missing required fields: ${missingFields.join(', ')}. Please provide all required information to create a project.` 
+      }
     }
 
     if (!supabase) {
@@ -892,24 +914,30 @@ Do not engage in any conversation that is not about the projects or the business
     }
 
     const projectNumber = `${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`
+    
+    // Default install_commencement_date to today if not provided
+    const today = new Date().toISOString().split('T')[0]
+    const installDate = install_commencement_date && install_commencement_date.trim() !== '' 
+      ? install_commencement_date 
+      : today
 
     try {
       await createProject.mutateAsync({
         project_number: projectNumber,
-        client,
-        project_name,
-        project_address: project_address || '',
-        project_status: project_status || 'planning',
-        overall_project_budget: overall_project_budget || 0,
-        priority_level: priority_level || 'medium',
-        install_duration: 0,
-        date_created: new Date().toISOString().split('T')[0],
-        install_commencement_date: '',
+        client: client.trim(),
+        project_name: project_name.trim(),
+        project_address: project_address.trim(),
+        project_status: project_status,
+        overall_project_budget: Number(overall_project_budget) || 0,
+        priority_level: priority_level,
+        install_duration: install_duration || 0,
+        date_created: today,
+        install_commencement_date: installDate,
       })
 
       return {
         success: true,
-        message: `Created project ${projectNumber} for ${client}`,
+        message: `Created project ${projectNumber} for ${client} with install date ${installDate}`,
         project_number: projectNumber,
       }
     } catch (error) {
