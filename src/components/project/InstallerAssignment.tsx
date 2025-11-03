@@ -46,7 +46,7 @@ export function InstallerAssignment({ projectId }: InstallerAssignmentProps) {
       {/* Assigned Installers */}
       {assignedInstallers.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {assignedInstallers.map((installer) => (
+          {assignedInstallers.map((installer: Installer) => (
             <InstallerCard
               key={installer.id}
               installer={installer}
@@ -75,7 +75,7 @@ export function InstallerAssignment({ projectId }: InstallerAssignmentProps) {
       {showAddForm && (
         <AddInstallerModal
           projectId={projectId}
-          assignedInstallerIds={assignedInstallers.map(i => i.id)}
+          assignedInstallerIds={assignedInstallers.map((i: Installer) => i.id)}
           onClose={() => setShowAddForm(false)}
           onSuccess={() => setShowAddForm(false)}
         />
@@ -84,7 +84,7 @@ export function InstallerAssignment({ projectId }: InstallerAssignmentProps) {
   )
 }
 
-function InstallerCard({ installer, projectId }: { installer: any, projectId: string }) {
+function InstallerCard({ installer, projectId }: { installer: Installer, projectId: string }) {
   const removeInstaller = useRemoveProjectInstaller()
 
   const handleRemove = async () => {
@@ -129,7 +129,14 @@ function InstallerCard({ installer, projectId }: { installer: any, projectId: st
   )
 }
 
-function AddInstallerModal({ projectId, assignedInstallerIds, onClose, onSuccess }: any) {
+interface AddInstallerModalProps {
+  projectId: string
+  assignedInstallerIds: string[]
+  onClose: () => void
+  onSuccess: () => void
+}
+
+function AddInstallerModal({ projectId, assignedInstallerIds, onClose, onSuccess }: AddInstallerModalProps) {
   const [selectedInstallerId, setSelectedInstallerId] = useState('')
   const assignInstaller = useAssignProjectInstaller()
   const { data: installers } = useInstallers()
@@ -166,7 +173,7 @@ function AddInstallerModal({ projectId, assignedInstallerIds, onClose, onSuccess
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="">Choose an installer...</option>
-              {installers?.filter(i => !assignedInstallerIds.includes(i.id)).map((installer) => (
+              {installers?.filter((i: Installer) => !assignedInstallerIds.includes(i.id)).map((installer: Installer) => (
                 <option key={installer.id} value={installer.id}>
                   {installer.name}
                 </option>
