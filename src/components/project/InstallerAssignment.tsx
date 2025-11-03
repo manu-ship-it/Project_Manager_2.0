@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Plus, User, Phone, Mail, Trash2, X } from 'lucide-react'
 import { useInstallers, useAssignProjectInstaller, useRemoveProjectInstaller, useProjectInstallers } from '@/hooks/useInstallers'
-import { ProjectInstaller } from '@/lib/supabase'
+import { ProjectInstaller, Installer } from '@/lib/supabase'
 
 interface InstallerAssignmentProps {
   projectId: string
@@ -24,7 +24,7 @@ export function InstallerAssignment({ projectId }: InstallerAssignmentProps) {
 
   const assignedInstallers = (projectInstallers || []).map((pi: ProjectInstaller) => 
     (installers || []).find(installer => installer.id === pi.installer_id)
-  ).filter((installer): installer is NonNullable<typeof installer> => installer !== undefined)
+  ).filter((installer: Installer | undefined): installer is Installer => installer !== undefined)
 
   return (
     <div className="space-y-6">
