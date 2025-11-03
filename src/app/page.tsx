@@ -1,16 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Filter } from 'lucide-react'
+import { Plus, Search, Filter, Mic } from 'lucide-react'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { ProjectForm } from '@/components/projects/ProjectForm'
 import { ProjectDetailModal } from '@/components/projects/ProjectDetailModal'
+import { VoiceAssistant } from '@/components/voice/VoiceAssistant'
 import { supabase } from '@/lib/supabase'
 import { Project } from '@/lib/supabase'
 
 export default function Dashboard() {
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [showProjectDetail, setShowProjectDetail] = useState(false)
+  const [showVoiceAssistant, setShowVoiceAssistant] = useState(false)
   const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -22,6 +24,14 @@ export default function Dashboard() {
   useEffect(() => {
     async function fetchProjects() {
       try {
+        // Check if Supabase is configured
+        if (!supabase) {
+          console.warn('Supabase not configured - using empty project list')
+          setProjects([])
+          setIsLoading(false)
+          return
+        }
+
         console.log('Fetching projects...')
         const { data, error } = await supabase
           .from('projects')
@@ -144,6 +154,13 @@ export default function Dashboard() {
               <p className="text-gray-600 mt-1">Manage your joinery projects and installations</p>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowVoiceAssistant(true)}
+                className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Mic className="h-4 w-4" />
+                <span>Talk to Assistant</span>
+              </button>
               <button
                 onClick={() => setShowProjectForm(true)}
                 className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
@@ -315,6 +332,32 @@ export default function Dashboard() {
           }}
           onEdit={handleEditProject}
           onDelete={handleDeleteProject}
+        />
+      )}
+
+      {/* Voice Assistant Modal */}
+      {showVoiceAssistant && (
+        <VoiceAssistant
+          onClose={() => setShowVoiceAssistant(false)}
+          onProjectUpdate={async () => {
+            // Refresh projects after voice assistant operations
+            try {
+              if (supabase) {
+                const { data, error } = await supabase
+                  .from('projects')
+                  .select('*')
+                  .order('created_at', { ascending: false })
+                
+                if (!error && data) {
+                  setProjects(data)
+                }
+              }
+            } catch (err) {
+              console.error('Error refreshing projects:', err)
+              // Fallback to full page reload if refresh fails
+              window.location.reload()
+            }
+          }}
         />
       )}
     </div>
