@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, Filter, Mic } from 'lucide-react'
+import { Plus, Search, Filter, Mic, LayoutGrid, List } from 'lucide-react'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { ProjectForm } from '@/components/projects/ProjectForm'
 import { ProjectDetailModal } from '@/components/projects/ProjectDetailModal'
 import { VoiceAssistant } from '@/components/voice/VoiceAssistant'
 import { supabase } from '@/lib/supabase'
 import { Project } from '@/lib/supabase'
+import { useUpdateProject } from '@/hooks/useProjects'
 
 export default function Dashboard() {
   const [showProjectForm, setShowProjectForm] = useState(false)
@@ -19,6 +20,8 @@ export default function Dashboard() {
   const [projects, setProjects] = useState<Project[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card')
+  const updateProject = useUpdateProject()
 
   // Fetch projects
   useEffect(() => {
@@ -103,6 +106,16 @@ export default function Dashboard() {
     return 'bg-red-100 text-red-800 border-red-200'
   }
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'planning': return 'bg-blue-100 text-blue-800'
+      case 'in_progress': return 'bg-yellow-100 text-yellow-800'
+      case 'completed': return 'bg-green-100 text-green-800'
+      case 'on_hold': return 'bg-gray-100 text-gray-800'
+      default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   // Handle project card click
   const handleProjectClick = (project: Project) => {
     setSelectedProject(project)
@@ -121,6 +134,16 @@ export default function Dashboard() {
     setProjects(projects.filter(p => p.id !== projectId))
     setShowProjectDetail(false)
     setSelectedProject(null)
+  }
+
+  // Handle update project
+  const handleUpdateProject = async (id: string, updates: Partial<Project>) => {
+    try {
+      const updated = await updateProject.mutateAsync({ id, ...updates })
+      setProjects(projects.map(p => p.id === id ? updated : p))
+    } catch (error) {
+      console.error('Error updating project:', error)
+    }
   }
 
   if (isLoading) {
@@ -150,10 +173,36 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Custom Joinery Project Manager</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
               <p className="text-gray-600 mt-1">Manage your joinery projects and installations</p>
             </div>
             <div className="flex items-center space-x-4">
+              <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm">
+                <button
+                  onClick={() => setViewMode('card')}
+                  className={`flex items-center space-x-1 px-3 py-2 transition-colors ${
+                    viewMode === 'card'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                  title="Card View"
+                >
+                  <LayoutGrid className="h-5 w-5" />
+                  <span className="text-sm font-medium">Cards</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`flex items-center space-x-1 px-3 py-2 transition-colors border-l border-gray-300 ${
+                    viewMode === 'list'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                  title="List View"
+                >
+                  <List className="h-5 w-5" />
+                  <span className="text-sm font-medium">List</span>
+                </button>
+              </div>
               <button
                 onClick={() => setShowVoiceAssistant(true)}
                 className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
@@ -241,28 +290,121 @@ export default function Dashboard() {
                       ({projectsInStatus.length} project{projectsInStatus.length !== 1 ? 's' : ''})
                     </span>
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {projectsInStatus.map((project) => {
-                      const daysUntilInstall = project.install_commencement_date 
-                        ? getDaysUntilInstall(project.install_commencement_date)
-                        : null
-                      
-                      return (
-                        <div
-                          key={project.id}
-                          onClick={() => handleProjectClick(project)}
-                          className="cursor-pointer"
-                        >
-                          <ProjectCard
-                            project={project}
-                            daysUntilInstall={project.project_status === 'completed' ? null : daysUntilInstall}
-                            urgencyColor={project.project_status === 'completed' ? '' : (daysUntilInstall ? getUrgencyColor(daysUntilInstall) : '')}
-                            onEdit={handleEditProject}
-                          />
-                        </div>
-                      )
-                    })}
-                  </div>
+                  {viewMode === 'card' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {projectsInStatus.map((project) => {
+                        const daysUntilInstall = project.install_commencement_date 
+                          ? getDaysUntilInstall(project.install_commencement_date)
+                          : null
+                        
+                        return (
+                          <div
+                            key={project.id}
+                            onClick={() => handleProjectClick(project)}
+                            className="cursor-pointer"
+                          >
+                            <ProjectCard
+                              project={project}
+                              daysUntilInstall={project.project_status === 'completed' ? null : daysUntilInstall}
+                              urgencyColor={project.project_status === 'completed' ? '' : (daysUntilInstall ? getUrgencyColor(daysUntilInstall) : '')}
+                              onEdit={handleEditProject}
+                              onUpdate={handleUpdateProject}
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project #</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Until Install</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Install Date</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th>
+                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {projectsInStatus.map((project) => {
+                              const daysUntilInstall = project.install_commencement_date 
+                                ? getDaysUntilInstall(project.install_commencement_date)
+                                : null
+                              
+                              return (
+                                <tr
+                                  key={project.id}
+                                  onClick={() => handleProjectClick(project)}
+                                  className="cursor-pointer hover:bg-blue-50 hover:shadow-sm transition-all duration-150"
+                                >
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    {project.project_number}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {project.client}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {project.project_name}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    {project.project_status === 'completed' ? (
+                                      <span className="px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">
+                                        Complete
+                                      </span>
+                                    ) : daysUntilInstall !== null ? (
+                                      <span className={`px-2 py-1 text-xs font-medium rounded ${getUrgencyColor(daysUntilInstall)}`}>
+                                        {daysUntilInstall > 0 ? `${daysUntilInstall} days` : 
+                                         daysUntilInstall === 0 ? 'Today' : 'Overdue'}
+                                      </span>
+                                    ) : (
+                                      <span className="text-sm text-gray-400">-</span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <select
+                                      value={project.project_status}
+                                      onChange={(e) => {
+                                        handleUpdateProject(project.id, { project_status: e.target.value as Project['project_status'] })
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${getStatusColor(project.project_status)}`}
+                                    >
+                                      <option value="planning">Planning</option>
+                                      <option value="in_progress">In Progress</option>
+                                      <option value="completed">Completed</option>
+                                      <option value="on_hold">On Hold</option>
+                                    </select>
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap">
+                                    <input
+                                      type="date"
+                                      value={project.install_commencement_date ? new Date(project.install_commencement_date).toISOString().split('T')[0] : ''}
+                                      onChange={(e) => {
+                                        handleUpdateProject(project.id, { install_commencement_date: e.target.value || '' })
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-sm text-gray-600 border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                    ${project.overall_project_budget.toLocaleString()}
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                                    {project.project_address || '-'}
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })
