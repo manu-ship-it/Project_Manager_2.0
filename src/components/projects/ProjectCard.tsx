@@ -11,10 +11,12 @@ interface ProjectCardProps {
   daysUntilInstall: number | null
   urgencyColor: string
   onEdit?: (project: Project) => void
+  onUpdate?: (id: string, updates: Partial<Project>) => Promise<void>
 }
 
-export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit }: ProjectCardProps) {
+export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, onUpdate }: ProjectCardProps) {
   const [showMenu, setShowMenu] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
   const deleteProject = useDeleteProject()
 
   const handleDelete = async () => {
@@ -43,16 +45,39 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit }:
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow">
+    <div className="bg-white rounded-lg shadow-sm border hover:shadow-md hover:bg-blue-50 transition-all duration-150">
       {/* Header */}
       <div className="p-6 border-b">
         <div className="flex justify-between items-start">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-2">
               <h3 className="text-lg font-semibold text-gray-900">{project.project_name}</h3>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.project_status)}`}>
-                {project.project_status.replace('_', ' ')}
-              </span>
+              {onUpdate ? (
+                <select
+                  value={project.project_status}
+                  onChange={async (e) => {
+                    e.stopPropagation()
+                    setIsUpdating(true)
+                    try {
+                      await onUpdate(project.id, { project_status: e.target.value as Project['project_status'] })
+                    } finally {
+                      setIsUpdating(false)
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={isUpdating}
+                  className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${getStatusColor(project.project_status)}`}
+                >
+                  <option value="planning">Planning</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="on_hold">On Hold</option>
+                </select>
+              ) : (
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.project_status)}`}>
+                  {project.project_status.replace('_', ' ')}
+                </span>
+              )}
             </div>
             <p className="text-sm text-gray-600 mb-1">#{project.project_number}</p>
             <p className="text-sm text-gray-500">{project.client}</p>
@@ -131,14 +156,34 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit }:
           </div>
 
           {/* Install Date & Duration */}
-          {project.install_commencement_date && (
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-4 w-4 text-gray-400" />
+          <div className="flex items-center space-x-2">
+            <Calendar className="h-4 w-4 text-gray-400" />
+            {onUpdate ? (
+              <input
+                type="date"
+                value={project.install_commencement_date ? new Date(project.install_commencement_date).toISOString().split('T')[0] : ''}
+                onChange={async (e) => {
+                  e.stopPropagation()
+                  setIsUpdating(true)
+                  try {
+                    await onUpdate(project.id, { install_commencement_date: e.target.value || '' })
+                  } finally {
+                    setIsUpdating(false)
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                disabled={isUpdating}
+                className="text-sm text-gray-600 border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                placeholder="Select install date"
+              />
+            ) : project.install_commencement_date ? (
               <span className="text-sm text-gray-600">
                 Install: {format(new Date(project.install_commencement_date), 'MMM dd, yyyy')}
               </span>
-            </div>
-          )}
+            ) : (
+              <span className="text-sm text-gray-400">No install date set</span>
+            )}
+          </div>
 
           {project.install_duration > 0 && (
             <div className="flex items-center space-x-2">
