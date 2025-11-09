@@ -39,7 +39,7 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
 
   // Filter projects with install dates
   const timelineProjects = localProjects.filter(project => 
-    (project.project_status === 'planning' || project.project_status === 'in_progress') &&
+    (project.status === 'planning' || project.status === 'in_progress') &&
     project.install_commencement_date
   )
 
@@ -230,7 +230,7 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
   }, [dayWidth, dateHeaders.length])
 
   // Handle mouse down for resize only
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent, project: Project) => {
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent | MouseEvent, project: Project) => {
     e.preventDefault()
     e.stopPropagation()
 
@@ -256,12 +256,17 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
     if (document.body) {
       document.body.style.overflow = 'hidden'
       document.body.style.userSelect = 'none'
+      document.body.style.touchAction = 'none'
     }
   }, [getDayIndex])
 
-  // Handle mouse move for resize
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  // Handle mouse move for resize (supports both mouse and touch)
+  const handleMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!dragState.type || !dragState.projectId || !timelineRef.current || !scrollContainerRef.current) return
+
+    // Get clientX from either mouse or touch event
+    const clientX = 'touches' in e ? e.touches[0]?.clientX : e.clientX
+    if (!clientX) return
 
     // Throttle updates
     const now = Date.now()
@@ -277,7 +282,7 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
     }
 
     animationFrameRef.current = requestAnimationFrame(() => {
-      const targetDayIndex = getDayIndexFromMouseX(e.clientX)
+      const targetDayIndex = getDayIndexFromMouseX(clientX)
       const currentProject = localProjects.find(p => p.id === dragState.projectId)
       if (!currentProject) return
 
@@ -298,8 +303,8 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
     })
   }, [dragState, getDayIndexFromMouseX, localProjects])
 
-  // Handle mouse up for resize
-  const handleMouseUp = useCallback((e: MouseEvent) => {
+  // Handle mouse up for resize (supports both mouse and touch)
+  const handleMouseUp = useCallback((e: MouseEvent | TouchEvent) => {
     if (!dragState.type || !dragState.projectId) {
       setDragState({
         type: null,
@@ -310,7 +315,9 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
       return
     }
 
-    const targetDayIndex = getDayIndexFromMouseX(e.clientX)
+    // Get clientX from either mouse or touch event
+    const clientX = 'touches' in e ? (e.changedTouches[0]?.clientX ?? 0) : e.clientX
+    const targetDayIndex = getDayIndexFromMouseX(clientX)
     const project = localProjects.find(p => p.id === dragState.projectId)
     if (!project) {
       setDragState({
@@ -363,18 +370,23 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
     if (document.body) {
       document.body.style.overflow = ''
       document.body.style.userSelect = ''
+      document.body.style.touchAction = ''
     }
   }, [dragState, getDayIndexFromMouseX, localProjects, updateProject, onProjectUpdate])
 
-  // Set up global mouse event listeners for resize
+  // Set up global mouse and touch event listeners for resize
   useEffect(() => {
     if (dragState.type) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('mouseup', handleMouseUp)
+      window.addEventListener('mousemove', handleMouseMove as EventListener)
+      window.addEventListener('mouseup', handleMouseUp as EventListener)
+      window.addEventListener('touchmove', handleMouseMove as EventListener, { passive: false })
+      window.addEventListener('touchend', handleMouseUp as EventListener)
       
       return () => {
-        window.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('mouseup', handleMouseUp)
+        window.removeEventListener('mousemove', handleMouseMove as EventListener)
+        window.removeEventListener('mouseup', handleMouseUp as EventListener)
+        window.removeEventListener('touchmove', handleMouseMove as EventListener)
+        window.removeEventListener('touchend', handleMouseUp as EventListener)
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current)
         }
@@ -385,6 +397,7 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
         if (document.body) {
           document.body.style.overflow = ''
           document.body.style.userSelect = ''
+          document.body.style.touchAction = ''
         }
       }
     }
@@ -392,21 +405,22 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
 
   return (
     <div className="bg-white rounded-lg shadow-sm border">
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Project Install Timeline</h2>
-            <p className="text-sm text-gray-600">
+      <div className="p-3 sm:p-4 border-b">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-2">
+          <div className="flex-1">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Project Install Timeline</h2>
+            <p className="text-xs sm:text-sm text-gray-600">
               Showing {timelineProjects.length} project{timelineProjects.length !== 1 ? 's' : ''} with scheduled installs
             </p>
             {selectedProjectId && (
               <p className="text-xs text-blue-600 mt-1">
-                Project selected. Use ← → arrow keys to move. Drag right edge to resize duration.
+                <span className="hidden sm:inline">Project selected. Use ← → arrow keys to move. Drag right edge to resize duration.</span>
+                <span className="sm:hidden">Selected. Tap to move. Drag edge to resize.</span>
               </p>
             )}
           </div>
-          <div className="flex items-center space-x-3">
-            <label className="text-sm text-gray-700 whitespace-nowrap">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3">
+            <label className="text-xs sm:text-sm text-gray-700 whitespace-nowrap">
               Day Width: <span className="font-medium">{dayWidth}px</span>
             </label>
             <input
@@ -415,7 +429,7 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
               max="100"
               value={dayWidth}
               onChange={(e) => setDayWidth(Number(e.target.value))}
-              className="w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+              className="w-full sm:w-32 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
               style={{
                 background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((dayWidth - 30) / 70) * 100}%, #e5e7eb ${((dayWidth - 30) / 70) * 100}%, #e5e7eb 100%)`
               }}
@@ -426,34 +440,52 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
       
       <div 
         ref={scrollContainerRef}
-        className="overflow-x-auto"
+        className="overflow-x-auto -mx-4 sm:mx-0"
         data-timeline-container
         onClick={handleTimelineClick}
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <div style={{ minWidth: `${192 + (dateHeaders.length * dayWidth)}px` }}>
+        <div style={{ minWidth: `${160 + (dateHeaders.length * dayWidth)}px` }}>
           {/* Date Headers */}
-          <div className="flex border-b">
-            <div className="w-48 p-3 border-r bg-gray-50">
-              <span className="text-sm font-medium text-gray-700">Project</span>
+          <div className="flex border-b sticky top-0 z-30 bg-white">
+            <div className="w-32 sm:w-48 p-2 sm:p-3 border-r bg-gray-50 flex-shrink-0">
+              <span className="text-xs sm:text-sm font-medium text-gray-700">Project</span>
             </div>
             <div className="flex" style={{ width: `${dateHeaders.length * dayWidth}px` }}>
-              {dateHeaders.map((date, index) => (
-                <div
-                  key={index}
-                  className={`text-center text-xs py-2 border-r border-gray-200 ${
-                    date.toDateString() === today.toDateString() 
-                      ? 'bg-red-100 text-red-800 font-semibold' 
-                      : 'bg-gray-50'
-                  }`}
-                  style={{ 
-                    width: `${dayWidth}px`,
-                    flexShrink: 0
-                  }}
-                  title={date.toLocaleDateString()}
-                >
-                  {date.getDate()}
-                </div>
-              ))}
+              {dateHeaders.map((date, index) => {
+                const isToday = date.toDateString() === today.toDateString()
+                const isFirstOfMonth = date.getDate() === 1
+                const isWeekend = date.getDay() === 0 || date.getDay() === 6
+                
+                return (
+                  <div
+                    key={index}
+                    className={`text-center text-[10px] sm:text-xs py-1 sm:py-2 border-r border-gray-200 flex flex-col items-center justify-center ${
+                      isToday 
+                        ? 'bg-red-100 text-red-800 font-semibold' 
+                        : isWeekend
+                        ? 'bg-gray-50 text-gray-500'
+                        : 'bg-gray-50'
+                    }`}
+                    style={{ 
+                      width: `${dayWidth}px`,
+                      flexShrink: 0,
+                      minHeight: '40px'
+                    }}
+                    title={date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  >
+                    {isFirstOfMonth && (
+                      <span className="text-[9px] sm:text-[10px] font-semibold text-gray-600 mb-0.5">
+                        {date.toLocaleDateString('en-US', { month: 'short' })}
+                      </span>
+                    )}
+                    <span className={isToday ? 'font-bold' : ''}>{date.getDate()}</span>
+                    {isToday && (
+                      <span className="text-[8px] text-red-600 font-medium mt-0.5">Today</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -477,14 +509,17 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
               const isResizing = dragState.projectId === project.id && dragState.type === 'resize'
 
               return (
-                <div key={project.id} className="flex items-center py-3">
+                <div key={project.id} className="flex items-center py-2 sm:py-3">
                   {/* Project Name */}
-                  <div className="w-48 p-3 border-r">
-                    <div className="text-sm font-medium text-gray-900 truncate">
-                      {project.project_name}
+                  <div className="w-32 sm:w-48 p-2 sm:p-3 border-r flex-shrink-0">
+                    <div className="text-xs sm:text-sm font-medium text-gray-900 truncate" title={project.name}>
+                      {project.name}
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {project.client}
+                    <div className="text-[10px] sm:text-xs text-gray-500 truncate" title={project.customer?.company_name || ''}>
+                      {project.customer?.company_name || ''}
+                    </div>
+                    <div className="text-[9px] sm:text-xs text-gray-400 mt-0.5 hidden sm:block">
+                      {duration}d
                     </div>
                   </div>
 
@@ -519,7 +554,7 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
                       {/* Project Bar */}
                       <div 
                         data-project-bar
-                        className={`absolute top-1/2 transform -translate-y-1/2 h-6 rounded ${getStatusColor(project.project_status)} opacity-80 hover:opacity-100 transition-opacity cursor-pointer border-2 ${
+                        className={`absolute top-1/2 transform -translate-y-1/2 h-6 sm:h-7 rounded ${getStatusColor(project.status || 'planning')} opacity-80 hover:opacity-100 transition-opacity cursor-pointer border-2 touch-none ${
                           isSelected 
                             ? 'border-blue-500 border-4 opacity-100 z-20 shadow-lg ring-2 ring-blue-300' 
                             : isResizing
@@ -528,21 +563,28 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
                         }`}
                         style={{ 
                           left: `${barStartPosition}px`,
-                          width: `${barWidth}px`
+                          width: `${barWidth}px`,
+                          minWidth: '24px'
                         }}
                         onClick={(e) => handleProjectClick(e, project)}
-                        title={`${project.project_name} - ${duration} day${duration !== 1 ? 's' : ''} install (${installDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})${isSelected ? ' - Selected (use arrow keys to move)' : ''}`}
+                        title={`${project.name} - ${duration} day${duration !== 1 ? 's' : ''} install (${installDate.toLocaleDateString()} to ${endDate.toLocaleDateString()})${isSelected ? ' - Selected (use arrow keys to move)' : ''}`}
                       >
-                        <div className="h-full flex items-center justify-center text-white text-xs font-medium">
-                          {duration}d
+                        <div className="h-full flex items-center justify-center text-white text-[10px] sm:text-xs font-medium px-1">
+                          <span className="hidden sm:inline">{duration}d</span>
+                          <span className="sm:hidden">{duration}</span>
                         </div>
                         {/* Resize handle - only for resizing duration */}
                         <div 
-                          className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize bg-white bg-opacity-50 hover:bg-opacity-70 rounded-r border-l-2 border-white border-opacity-50"
+                          className="absolute right-0 top-0 bottom-0 w-4 sm:w-3 cursor-ew-resize bg-white bg-opacity-50 hover:bg-opacity-70 active:bg-opacity-90 rounded-r border-l-2 border-white border-opacity-50 touch-manipulation"
                           title="Drag right edge to resize duration"
                           onMouseDown={(e) => {
                             e.stopPropagation()
                             handleResizeMouseDown(e, project)
+                          }}
+                          onTouchStart={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleResizeMouseDown(e as any, project)
                           }}
                         />
                       </div>

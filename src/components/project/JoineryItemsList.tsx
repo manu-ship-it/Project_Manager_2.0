@@ -1,17 +1,34 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Check, X, Calendar, DollarSign } from 'lucide-react'
-import { useJoineryItems } from '@/hooks/useJoineryItems'
+import { Plus, Check, X, Calendar, DollarSign, Edit } from 'lucide-react'
+import { useJoineryItems, useUpdateJoineryItem } from '@/hooks/useJoineryItems'
 import { JoineryItemForm } from './JoineryItemForm'
+import { JoineryItemMaterials } from './JoineryItemMaterials'
+import { JoineryItemCabinets } from './JoineryItemCabinets'
+import { JoineryItem } from '@/lib/supabase'
 
 interface JoineryItemsListProps {
-  projectId: string
+  projectId: string // This is actually quote_proj_id now
 }
 
 export function JoineryItemsList({ projectId }: JoineryItemsListProps) {
   const [showForm, setShowForm] = useState(false)
+  const [editingItem, setEditingItem] = useState<JoineryItem | null>(null)
   const { data: items, isLoading } = useJoineryItems(projectId)
+  const updateJoineryItem = useUpdateJoineryItem()
+
+  const handleChecklistToggle = async (itemId: string, checklistKey: string, currentValue: boolean) => {
+    try {
+      await updateJoineryItem.mutateAsync({
+        id: itemId,
+        [checklistKey]: !currentValue,
+      })
+    } catch (error: any) {
+      console.error('Error updating checklist:', error)
+      alert(`Error updating checklist: ${error?.message || 'Unknown error'}`)
+    }
+  }
 
   const checklistItems = [
     { key: 'shop_drawings_approved', label: 'Shop Drawings Approved' },
@@ -60,13 +77,13 @@ export function JoineryItemsList({ projectId }: JoineryItemsListProps) {
           {items.map((item) => (
             <div key={item.id} className="bg-white border rounded-lg p-6">
               <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900">{item.item_name}</h4>
+                <div className="flex-1">
+                  <h4 className="text-lg font-semibold text-gray-900">{item.name}</h4>
                   <div className="flex items-center space-x-4 mt-2">
                     <div className="flex items-center space-x-1">
                       <DollarSign className="h-4 w-4 text-gray-400" />
                       <span className="text-sm text-gray-600">
-                        Budget: ${item.item_budget.toLocaleString()}
+                        Budget: ${(item.budget || 0).toLocaleString()}
                       </span>
                     </div>
                     {item.install_commencement_date && (
@@ -77,38 +94,58 @@ export function JoineryItemsList({ projectId }: JoineryItemsListProps) {
                         </span>
                       </div>
                     )}
-                    {item.install_duration > 0 && (
+                    {item.install_duration && item.install_duration > 0 && (
                       <span className="text-sm text-gray-600">
                         Duration: {item.install_duration} days
                       </span>
                     )}
                   </div>
                 </div>
+                <button
+                  onClick={() => setEditingItem(item)}
+                  className="ml-4 p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Edit item"
+                >
+                  <Edit className="h-5 w-5" />
+                </button>
               </div>
 
               {/* Checklist */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {checklistItems.map((checklistItem) => (
-                  <div key={checklistItem.key} className="flex items-center space-x-2">
-                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                      item[checklistItem.key as keyof typeof item] 
-                        ? 'bg-green-500 border-green-500 text-white' 
-                        : 'border-gray-300'
-                    }`}>
-                      {item[checklistItem.key as keyof typeof item] && (
-                        <Check className="h-3 w-3" />
-                      )}
-                    </div>
-                    <span className={`text-sm ${
-                      item[checklistItem.key as keyof typeof item] 
-                        ? 'text-green-700 font-medium' 
-                        : 'text-gray-600'
-                    }`}>
-                      {checklistItem.label}
-                    </span>
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                {checklistItems.map((checklistItem) => {
+                  const isChecked = item[checklistItem.key as keyof typeof item] as boolean
+                  return (
+                    <button
+                      key={checklistItem.key}
+                      onClick={() => handleChecklistToggle(item.id, checklistItem.key, isChecked)}
+                      className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 transition-colors text-left w-full"
+                    >
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
+                        isChecked
+                          ? 'bg-green-500 border-green-500 text-white' 
+                          : 'border-gray-300'
+                      }`}>
+                        {isChecked && (
+                          <Check className="h-3 w-3" />
+                        )}
+                      </div>
+                      <span className={`text-sm ${
+                        isChecked
+                          ? 'text-green-700 font-medium' 
+                          : 'text-gray-600'
+                      }`}>
+                        {checklistItem.label}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
+
+              {/* Materials Section */}
+              <JoineryItemMaterials joineryItemId={item.id} />
+
+              {/* Cabinets Section */}
+              <JoineryItemCabinets joineryItemId={item.id} />
             </div>
           ))}
         </div>
@@ -137,6 +174,16 @@ export function JoineryItemsList({ projectId }: JoineryItemsListProps) {
           projectId={projectId}
           onClose={() => setShowForm(false)}
           onSuccess={() => setShowForm(false)}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editingItem && (
+        <JoineryItemForm
+          projectId={projectId}
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSuccess={() => setEditingItem(null)}
         />
       )}
     </div>

@@ -1,81 +1,44 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Plus, Search, Filter, Mic, LayoutGrid, List } from 'lucide-react'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { ProjectForm } from '@/components/projects/ProjectForm'
 import { ProjectDetailModal } from '@/components/projects/ProjectDetailModal'
 import { VoiceAssistant } from '@/components/voice/VoiceAssistant'
-import { supabase } from '@/lib/supabase'
-import { Project } from '@/lib/supabase'
-import { useUpdateProject } from '@/hooks/useProjects'
+import { QuoteProject } from '@/lib/supabase'
+import { useProjects, useUpdateQuoteProject } from '@/hooks/useQuoteProjects'
 
 export default function Dashboard() {
   const [showProjectForm, setShowProjectForm] = useState(false)
   const [showProjectDetail, setShowProjectDetail] = useState(false)
   const [showVoiceAssistant, setShowVoiceAssistant] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [selectedProject, setSelectedProject] = useState<QuoteProject | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [projects, setProjects] = useState<Project[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: projects = [], isLoading, error: queryError } = useProjects()
   const [viewMode, setViewMode] = useState<'card' | 'list'>('card')
-  const updateProject = useUpdateProject()
+  const updateProject = useUpdateQuoteProject()
 
-  // Fetch projects
-  useEffect(() => {
-    async function fetchProjects() {
-      try {
-        // Check if Supabase is configured
-        if (!supabase) {
-          console.warn('Supabase not configured - using empty project list')
-          setProjects([])
-          setIsLoading(false)
-          return
-        }
-
-        console.log('Fetching projects...')
-        const { data, error } = await supabase
-          .from('projects')
-          .select('*')
-          .order('created_at', { ascending: false })
-        
-        console.log('Projects fetch result:', { data, error })
-        
-        if (error) {
-          console.error('Error fetching projects:', error)
-          setError(error.message)
-        } else {
-          setProjects(data || [])
-        }
-      } catch (err) {
-        console.error('Error:', err)
-        setError(err instanceof Error ? err.message : 'Unknown error')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchProjects()
-  }, [])
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Unknown error') : null
 
   // Filter projects
   const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         project.project_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         project.project_number.toLowerCase().includes(searchTerm.toLowerCase())
+    const customerName = project.customer?.company_name || ''
+    const matchesSearch = customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (project.proj_num || '').toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'all' || project.project_status === statusFilter
+    const matchesStatus = statusFilter === 'all' || project.status === statusFilter
     
     return matchesSearch && matchesStatus
   })
 
   // Sort projects by status priority
   const sortedProjects = filteredProjects.sort((a, b) => {
-    const statusOrder = { 'in_progress': 1, 'planning': 2, 'completed': 3, 'on_hold': 4 }
-    const aOrder = statusOrder[a.project_status] || 5
-    const bOrder = statusOrder[b.project_status] || 5
+    const statusOrder: Record<string, number> = { 'in_progress': 1, 'planning': 2, 'completed': 3, 'on_hold': 4 }
+    const aOrder = statusOrder[a.status || ''] || 5
+    const bOrder = statusOrder[b.status || ''] || 5
     
     if (aOrder !== bOrder) {
       return aOrder - bOrder
@@ -117,13 +80,13 @@ export default function Dashboard() {
   }
 
   // Handle project card click
-  const handleProjectClick = (project: Project) => {
+  const handleProjectClick = (project: QuoteProject) => {
     setSelectedProject(project)
     setShowProjectDetail(true)
   }
 
   // Handle edit project
-  const handleEditProject = (project: Project) => {
+  const handleEditProject = (project: QuoteProject) => {
     setSelectedProject(project)
     setShowProjectDetail(false)
     setShowProjectForm(true)
@@ -131,16 +94,14 @@ export default function Dashboard() {
 
   // Handle delete project
   const handleDeleteProject = (projectId: string) => {
-    setProjects(projects.filter(p => p.id !== projectId))
     setShowProjectDetail(false)
     setSelectedProject(null)
   }
 
   // Handle update project
-  const handleUpdateProject = async (id: string, updates: Partial<Project>) => {
+  const handleUpdateProject = async (id: string, updates: Partial<QuoteProject>) => {
     try {
-      const updated = await updateProject.mutateAsync({ id, ...updates })
-      setProjects(projects.map(p => p.id === id ? updated : p))
+      await updateProject.mutateAsync({ id, ...updates })
     } catch (error) {
       console.error('Error updating project:', error)
     }
@@ -148,7 +109,7 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     )
@@ -156,7 +117,7 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Projects</h2>
           <p className="text-gray-600">Please check your connection and try again.</p>
@@ -167,55 +128,57 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
-              <p className="text-gray-600 mt-1">Manage your joinery projects and installations</p>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 sm:py-6 gap-4">
+            <div className="pt-12 sm:pt-0">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Projects</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">Manage your joinery projects and installations</p>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
               <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white shadow-sm">
                 <button
                   onClick={() => setViewMode('card')}
-                  className={`flex items-center space-x-1 px-3 py-2 transition-colors ${
+                  className={`flex items-center space-x-1 px-2 sm:px-3 py-2 transition-colors ${
                     viewMode === 'card'
                       ? 'bg-blue-600 text-white'
                       : 'bg-white text-gray-600 hover:bg-gray-50'
                   }`}
                   title="Card View"
                 >
-                  <LayoutGrid className="h-5 w-5" />
-                  <span className="text-sm font-medium">Cards</span>
+                  <LayoutGrid className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-xs sm:text-sm font-medium hidden sm:inline">Cards</span>
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`flex items-center space-x-1 px-3 py-2 transition-colors border-l border-gray-300 ${
+                  className={`flex items-center space-x-1 px-2 sm:px-3 py-2 transition-colors border-l border-gray-300 ${
                     viewMode === 'list'
                       ? 'bg-blue-600 text-white'
                       : 'bg-white text-gray-600 hover:bg-gray-50'
                   }`}
                   title="List View"
                 >
-                  <List className="h-5 w-5" />
-                  <span className="text-sm font-medium">List</span>
+                  <List className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="text-xs sm:text-sm font-medium hidden sm:inline">List</span>
                 </button>
               </div>
               <button
                 onClick={() => setShowVoiceAssistant(true)}
-                className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                className="flex items-center space-x-2 bg-purple-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm sm:text-base"
               >
                 <Mic className="h-4 w-4" />
-                <span>Talk to Assistant</span>
+                <span className="hidden sm:inline">Talk to Assistant</span>
+                <span className="sm:hidden">Assistant</span>
               </button>
               <button
                 onClick={() => setShowProjectForm(true)}
-                className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                className="flex items-center space-x-2 bg-green-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base"
               >
                 <Plus className="h-4 w-4" />
-                <span>New Project</span>
+                <span className="hidden sm:inline">New Project</span>
+                <span className="sm:hidden">New</span>
               </button>
             </div>
           </div>
@@ -261,7 +224,7 @@ export default function Dashboard() {
           {(() => {
             // Group projects by status
             const groupedProjects = sortedProjects.reduce((groups, project) => {
-              const status = project.project_status
+              const status = project.status || 'unknown'
               if (!groups[status]) {
                 groups[status] = []
               }
@@ -269,7 +232,7 @@ export default function Dashboard() {
               return groups
             }, {} as Record<string, typeof sortedProjects>)
 
-            const statusLabels = {
+            const statusLabels: Record<string, string> = {
               'in_progress': 'In Progress',
               'planning': 'Planning',
               'completed': 'Completed',
@@ -285,7 +248,7 @@ export default function Dashboard() {
               return (
                 <div key={status}>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    {statusLabels[status as keyof typeof statusLabels]}
+                    {statusLabels[status] || status}
                     <span className="ml-2 text-sm font-normal text-gray-500">
                       ({projectsInStatus.length} project{projectsInStatus.length !== 1 ? 's' : ''})
                     </span>
@@ -305,8 +268,8 @@ export default function Dashboard() {
                           >
                             <ProjectCard
                               project={project}
-                              daysUntilInstall={project.project_status === 'completed' ? null : daysUntilInstall}
-                              urgencyColor={project.project_status === 'completed' ? '' : (daysUntilInstall ? getUrgencyColor(daysUntilInstall) : '')}
+                              daysUntilInstall={project.status === 'completed' ? null : daysUntilInstall}
+                              urgencyColor={project.status === 'completed' ? '' : (daysUntilInstall ? getUrgencyColor(daysUntilInstall) : '')}
                               onEdit={handleEditProject}
                               onUpdate={handleUpdateProject}
                             />
@@ -316,92 +279,97 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project #</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Name</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Until Install</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Install Date</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Budget</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {projectsInStatus.map((project) => {
-                              const daysUntilInstall = project.install_commencement_date 
-                                ? getDaysUntilInstall(project.install_commencement_date)
-                                : null
-                              
-                              return (
-                                <tr
-                                  key={project.id}
-                                  onClick={() => handleProjectClick(project)}
-                                  className="cursor-pointer hover:bg-blue-50 hover:shadow-sm transition-all duration-150"
-                                >
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                    {project.project_number}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {project.client}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {project.project_name}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    {project.project_status === 'completed' ? (
-                                      <span className="px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">
-                                        Complete
-                                      </span>
-                                    ) : daysUntilInstall !== null ? (
-                                      <span className={`px-2 py-1 text-xs font-medium rounded ${getUrgencyColor(daysUntilInstall)}`}>
-                                        {daysUntilInstall > 0 ? `${daysUntilInstall} days` : 
-                                         daysUntilInstall === 0 ? 'Today' : 'Overdue'}
-                                      </span>
-                                    ) : (
-                                      <span className="text-sm text-gray-400">-</span>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <select
-                                      value={project.project_status}
-                                      onChange={(e) => {
-                                        handleUpdateProject(project.id, { project_status: e.target.value as Project['project_status'] })
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${getStatusColor(project.project_status)}`}
-                                    >
-                                      <option value="planning">Planning</option>
-                                      <option value="in_progress">In Progress</option>
-                                      <option value="completed">Completed</option>
-                                      <option value="on_hold">On Hold</option>
-                                    </select>
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap">
-                                    <input
-                                      type="date"
-                                      value={project.install_commencement_date ? new Date(project.install_commencement_date).toISOString().split('T')[0] : ''}
-                                      onChange={(e) => {
-                                        handleUpdateProject(project.id, { install_commencement_date: e.target.value || '' })
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                      className="text-sm text-gray-600 border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
-                                    />
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                    ${project.overall_project_budget.toLocaleString()}
-                                  </td>
-                                  <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                                    {project.project_address || '-'}
-                                  </td>
+                      <div className="overflow-x-auto -mx-4 sm:mx-0">
+                        <div className="inline-block min-w-full align-middle">
+                          <div className="overflow-hidden sm:rounded-lg">
+                            <table className="min-w-full divide-y divide-gray-200">
+                              <thead className="bg-gray-50">
+                                <tr>
+                                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project #</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Project Name</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Until Install</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Install Date</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Budget</th>
+                                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">Address</th>
                                 </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
+                              </thead>
+                              <tbody className="bg-white divide-y divide-gray-200">
+                                {projectsInStatus.map((project) => {
+                                  const daysUntilInstall = project.install_commencement_date 
+                                    ? getDaysUntilInstall(project.install_commencement_date)
+                                    : null
+                                  
+                                  return (
+                                    <tr
+                                      key={project.id}
+                                      onClick={() => handleProjectClick(project)}
+                                      className="cursor-pointer hover:bg-blue-50 hover:shadow-sm transition-all duration-150"
+                                    >
+                                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        {project.proj_num || '-'}
+                                      </td>
+                                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        <div>{project.customer?.company_name || '-'}</div>
+                                        <div className="sm:hidden text-xs text-gray-500 mt-1">{project.name}</div>
+                                      </td>
+                                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden sm:table-cell">
+                                        {project.name}
+                                      </td>
+                                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                                        {project.status === 'completed' ? (
+                                          <span className="px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800">
+                                            Complete
+                                          </span>
+                                        ) : daysUntilInstall !== null ? (
+                                          <span className={`px-2 py-1 text-xs font-medium rounded ${getUrgencyColor(daysUntilInstall)}`}>
+                                            {daysUntilInstall > 0 ? `${daysUntilInstall} days` : 
+                                             daysUntilInstall === 0 ? 'Today' : 'Overdue'}
+                                          </span>
+                                        ) : (
+                                          <span className="text-sm text-gray-400">-</span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                                        <select
+                                          value={project.status || ''}
+                                          onChange={(e) => {
+                                            handleUpdateProject(project.id, { status: e.target.value })
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${getStatusColor(project.status || '')}`}
+                                        >
+                                          <option value="planning">Planning</option>
+                                          <option value="in_progress">In Progress</option>
+                                          <option value="completed">Completed</option>
+                                          <option value="on_hold">On Hold</option>
+                                        </select>
+                                      </td>
+                                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap hidden md:table-cell">
+                                        <input
+                                          type="date"
+                                          value={project.install_commencement_date ? new Date(project.install_commencement_date).toISOString().split('T')[0] : ''}
+                                          onChange={(e) => {
+                                            handleUpdateProject(project.id, { install_commencement_date: e.target.value || null })
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="text-sm text-gray-600 border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                                        />
+                                      </td>
+                                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">
+                                        ${(project.budget || 0).toLocaleString()}
+                                      </td>
+                                      <td className="px-3 sm:px-6 py-4 text-sm text-gray-600 max-w-xs truncate hidden lg:table-cell">
+                                        {project.address || '-'}
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -482,23 +450,7 @@ export default function Dashboard() {
         <VoiceAssistant
           onClose={() => setShowVoiceAssistant(false)}
           onProjectUpdate={async () => {
-            // Refresh projects after voice assistant operations
-            try {
-              if (supabase) {
-                const { data, error } = await supabase
-                  .from('projects')
-                  .select('*')
-                  .order('created_at', { ascending: false })
-                
-                if (!error && data) {
-                  setProjects(data)
-                }
-              }
-            } catch (err) {
-              console.error('Error refreshing projects:', err)
-              // Fallback to full page reload if refresh fails
-              window.location.reload()
-            }
+              // Projects will auto-refresh via React Query
           }}
         />
       )}

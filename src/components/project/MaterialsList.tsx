@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Edit, Trash2, Package, Ruler, Hash, Building } from 'lucide-react'
+import { Plus, Edit, Trash2, Package, Ruler, Building, DollarSign, Hash } from 'lucide-react'
 import { useMaterials, useDeleteMaterial } from '@/hooks/useMaterials'
 import { MaterialForm } from './MaterialForm'
 import { Material } from '@/lib/supabase'
@@ -13,7 +13,8 @@ interface MaterialsListProps {
 export function MaterialsList({ projectId }: MaterialsListProps) {
   const [showForm, setShowForm] = useState(false)
   const [editingMaterial, setEditingMaterial] = useState<Material | null>(null)
-  const { data: materials, isLoading } = useMaterials(projectId)
+  // Materials are now global - no project filtering
+  const { data: materials, isLoading } = useMaterials()
   const deleteMaterial = useDeleteMaterial()
 
   const handleEdit = (material: Material) => {
@@ -22,7 +23,7 @@ export function MaterialsList({ projectId }: MaterialsListProps) {
   }
 
   const handleDelete = async (material: Material) => {
-    if (confirm(`Are you sure you want to delete "${material.material_name}"?`)) {
+    if (confirm(`Are you sure you want to delete "${material.name}"?`)) {
       await deleteMaterial.mutateAsync(material.id)
     }
   }
@@ -50,8 +51,8 @@ export function MaterialsList({ projectId }: MaterialsListProps) {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Materials & Supplies</h3>
-          <p className="text-sm text-gray-600">Manage project materials and track inventory</p>
+          <h3 className="text-lg font-semibold text-gray-900">Materials Library</h3>
+          <p className="text-sm text-gray-600">Manage global materials library (available to all projects)</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
@@ -79,8 +80,8 @@ export function MaterialsList({ projectId }: MaterialsListProps) {
           <div className="text-gray-400 mb-4">
             <Package className="mx-auto h-12 w-12" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No materials yet</h3>
-          <p className="text-gray-500 mb-4">Add your first material to get started.</p>
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No materials in library</h3>
+          <p className="text-gray-500 mb-4">Add your first material to the global library.</p>
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -118,19 +119,10 @@ function MaterialCard({
       <div className="flex justify-between items-start mb-4">
         <div className="flex-1">
           <h4 className="text-lg font-semibold text-gray-900 mb-2">
-            {material.material_name}
+            {material.name}
           </h4>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Quantity */}
-            <div className="flex items-center space-x-2">
-              <Hash className="h-4 w-4 text-gray-400" />
-              <div>
-                <span className="text-sm text-gray-600">Quantity:</span>
-                <p className="font-medium text-gray-900">{material.quantity}</p>
-              </div>
-            </div>
-
             {/* Thickness */}
             {material.thickness && (
               <div className="flex items-center space-x-2">
@@ -153,13 +145,38 @@ function MaterialCard({
               </div>
             )}
 
+            {/* Cost Per Unit */}
+            {material.cost_per_unit !== null && material.cost_per_unit !== undefined && (
+              <div className="flex items-center space-x-2">
+                <DollarSign className="h-4 w-4 text-gray-400" />
+                <div>
+                  <span className="text-sm text-gray-600">Cost:</span>
+                  <p className="font-medium text-gray-900">
+                    ${material.cost_per_unit.toFixed(2)}
+                    {material.unit && `/${material.unit}`}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Unit (only show if cost is not set) */}
+            {(!material.cost_per_unit || material.cost_per_unit === null) && material.unit && (
+              <div className="flex items-center space-x-2">
+                <Hash className="h-4 w-4 text-gray-400" />
+                <div>
+                  <span className="text-sm text-gray-600">Unit:</span>
+                  <p className="font-medium text-gray-900 capitalize">{material.unit}</p>
+                </div>
+              </div>
+            )}
+
             {/* Supplier */}
-            {material.supplier && (
+            {(material as any).supplier && (
               <div className="flex items-center space-x-2">
                 <Building className="h-4 w-4 text-gray-400" />
                 <div>
                   <span className="text-sm text-gray-600">Supplier:</span>
-                  <p className="font-medium text-gray-900">{material.supplier}</p>
+                  <p className="font-medium text-gray-900">{(material as any).supplier?.name || 'Unknown'}</p>
                 </div>
               </div>
             )}

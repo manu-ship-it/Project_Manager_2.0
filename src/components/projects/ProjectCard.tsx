@@ -2,22 +2,22 @@
 
 import { useState } from 'react'
 import { Calendar, DollarSign, User, MapPin, Clock, MoreVertical, Edit, Trash2, Eye } from 'lucide-react'
-import { Project } from '@/lib/supabase'
-import { useDeleteProject } from '@/hooks/useProjects'
+import { QuoteProject } from '@/lib/supabase'
+import { useDeleteQuoteProject } from '@/hooks/useQuoteProjects'
 import { format } from 'date-fns'
 
 interface ProjectCardProps {
-  project: Project
+  project: QuoteProject
   daysUntilInstall: number | null
   urgencyColor: string
-  onEdit?: (project: Project) => void
-  onUpdate?: (id: string, updates: Partial<Project>) => Promise<void>
+  onEdit?: (project: QuoteProject) => void
+  onUpdate?: (id: string, updates: Partial<QuoteProject>) => Promise<void>
 }
 
 export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, onUpdate }: ProjectCardProps) {
   const [showMenu, setShowMenu] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
-  const deleteProject = useDeleteProject()
+  const deleteProject = useDeleteQuoteProject()
 
   const handleDelete = async () => {
     if (confirm('Are you sure you want to delete this project? This action cannot be undone.')) {
@@ -51,22 +51,22 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, o
         <div className="flex justify-between items-start">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-2">
-              <h3 className="text-lg font-semibold text-gray-900">{project.project_name}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{project.name}</h3>
               {onUpdate ? (
                 <select
-                  value={project.project_status}
+                  value={project.status || ''}
                   onChange={async (e) => {
                     e.stopPropagation()
                     setIsUpdating(true)
                     try {
-                      await onUpdate(project.id, { project_status: e.target.value as Project['project_status'] })
+                      await onUpdate(project.id, { status: e.target.value })
                     } finally {
                       setIsUpdating(false)
                     }
                   }}
                   onClick={(e) => e.stopPropagation()}
                   disabled={isUpdating}
-                  className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${getStatusColor(project.project_status)}`}
+                  className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${getStatusColor(project.status || '')}`}
                 >
                   <option value="planning">Planning</option>
                   <option value="in_progress">In Progress</option>
@@ -74,13 +74,13 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, o
                   <option value="on_hold">On Hold</option>
                 </select>
               ) : (
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.project_status)}`}>
-                  {project.project_status.replace('_', ' ')}
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(project.status || '')}`}>
+                  {(project.status || '').replace('_', ' ')}
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-600 mb-1">#{project.project_number}</p>
-            <p className="text-sm text-gray-500">{project.client}</p>
+            <p className="text-sm text-gray-600 mb-1">#{project.proj_num || '-'}</p>
+            <p className="text-sm text-gray-500">{project.customer?.company_name || '-'}</p>
           </div>
           <div className="relative">
             <button
@@ -140,10 +140,10 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, o
       <div className="p-6">
         <div className="space-y-3">
           {/* Project Address */}
-          {project.project_address && (
+          {project.address && (
             <div className="flex items-start space-x-2">
               <MapPin className="h-4 w-4 text-gray-400 mt-0.5" />
-              <span className="text-sm text-gray-600">{project.project_address}</span>
+              <span className="text-sm text-gray-600">{project.address}</span>
             </div>
           )}
 
@@ -151,7 +151,7 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, o
           <div className="flex items-center space-x-2">
             <DollarSign className="h-4 w-4 text-gray-400" />
             <span className="text-sm text-gray-600">
-              Budget: ${project.overall_project_budget.toLocaleString()}
+              Budget: ${(project.budget || 0).toLocaleString()}
             </span>
           </div>
 
@@ -166,7 +166,7 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, o
                   e.stopPropagation()
                   setIsUpdating(true)
                   try {
-                    await onUpdate(project.id, { install_commencement_date: e.target.value || '' })
+                    await onUpdate(project.id, { install_commencement_date: e.target.value || null })
                   } finally {
                     setIsUpdating(false)
                   }
@@ -185,7 +185,7 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, o
             )}
           </div>
 
-          {project.install_duration > 0 && (
+          {project.install_duration && project.install_duration > 0 && (
             <div className="flex items-center space-x-2">
               <Clock className="h-4 w-4 text-gray-400" />
               <span className="text-sm text-gray-600">
@@ -197,8 +197,8 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, o
           {/* Priority */}
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-600">Priority:</span>
-            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(project.priority_level)}`}>
-              {project.priority_level}
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(project.priority_level || 'low')}`}>
+              {project.priority_level || 'low'}
             </span>
           </div>
         </div>

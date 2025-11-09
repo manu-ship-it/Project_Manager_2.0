@@ -33,7 +33,12 @@ export function useCreateProjectTask() {
       return data as ProjectTask
     },
     onSuccess: (data) => {
+      // Invalidate the specific project's tasks
       queryClient.invalidateQueries({ queryKey: ['project-tasks', data.project_id] })
+      // Invalidate all project-tasks queries
+      queryClient.invalidateQueries({ queryKey: ['project-tasks'] })
+      // Invalidate all-tasks queries (for the Tasks page)
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] })
     },
   })
 }
@@ -54,7 +59,12 @@ export function useUpdateProjectTask() {
       return data as ProjectTask
     },
     onSuccess: (data) => {
+      // Invalidate the specific project's tasks (for ProjectDetailModal, project pages, etc.)
       queryClient.invalidateQueries({ queryKey: ['project-tasks', data.project_id] })
+      // Invalidate all project-tasks queries (broader invalidation)
+      queryClient.invalidateQueries({ queryKey: ['project-tasks'] })
+      // Invalidate all-tasks queries (for the Tasks page)
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] })
     },
   })
 }
@@ -64,15 +74,32 @@ export function useDeleteProjectTask() {
   
   return useMutation({
     mutationFn: async (id: string) => {
+      // First get the task to know which project it belongs to
+      const { data: task, error: fetchError } = await supabase
+        .from('project_tasks')
+        .select('project_id')
+        .eq('id', id)
+        .single()
+      
+      if (fetchError) throw fetchError
+      
       const { error } = await supabase
         .from('project_tasks')
         .delete()
         .eq('id', id)
       
       if (error) throw error
+      return task
     },
-    onSuccess: () => {
+    onSuccess: (task) => {
+      // Invalidate the specific project's tasks
+      if (task) {
+        queryClient.invalidateQueries({ queryKey: ['project-tasks', task.project_id] })
+      }
+      // Invalidate all project-tasks queries
       queryClient.invalidateQueries({ queryKey: ['project-tasks'] })
+      // Invalidate all-tasks queries (for the Tasks page)
+      queryClient.invalidateQueries({ queryKey: ['all-tasks'] })
     },
   })
 }

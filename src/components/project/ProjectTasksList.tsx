@@ -1,9 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Check, X, Trash2 } from 'lucide-react'
+import { Plus, Check, X, Trash2, Flag } from 'lucide-react'
 import { useProjectTasks, useUpdateProjectTask, useDeleteProjectTask } from '@/hooks/useProjectTasks'
 import { ProjectTaskForm } from './ProjectTaskForm'
+import { supabase, ProjectTask } from '@/lib/supabase'
+import { useQuery } from '@tanstack/react-query'
+import { useProjects } from '@/hooks/useProjects'
 
 interface ProjectTasksListProps {
   projectId: string
@@ -12,6 +15,32 @@ interface ProjectTasksListProps {
 export function ProjectTasksList({ projectId }: ProjectTasksListProps) {
   const [showForm, setShowForm] = useState(false)
   const { data: tasks, isLoading } = useProjectTasks(projectId)
+  const { data: projects } = useProjects()
+  
+  // Fetch all tasks across all non-completed projects to check flag limit
+  const nonCompletedProjects = projects?.filter(p => p.status !== 'completed') || []
+  const projectIds = nonCompletedProjects.map(p => p.id)
+  
+  const { data: allTasks } = useQuery({
+    queryKey: ['all-tasks', projectIds],
+    queryFn: async () => {
+      if (projectIds.length === 0) return []
+      
+      const { data, error } = await supabase
+        .from('project_tasks')
+        .select('*')
+        .in('project_id', projectIds)
+        .order('created_at', { ascending: false })
+      
+      if (error) throw error
+      return data as ProjectTask[]
+    },
+    enabled: projectIds.length > 0,
+  })
+  
+  // Count flagged tasks across all projects
+  const flaggedCount = allTasks?.filter(t => t.is_flagged).length || 0
+  const canFlagMore = flaggedCount < 3
 
   if (isLoading) {
     return (
@@ -41,9 +70,26 @@ export function ProjectTasksList({ projectId }: ProjectTasksListProps) {
       {/* Tasks List */}
       {tasks && tasks.length > 0 ? (
         <div className="space-y-3">
-          {tasks.map((task) => (
-            <TaskItem key={task.id} task={task} />
-          ))}
+          {[...tasks]
+            .sort((a, b) => {
+              // First priority: flagged tasks
+              if (a.is_flagged !== b.is_flagged) {
+                return a.is_flagged ? -1 : 1
+              }
+              // Second priority: incomplete vs completed
+              if (a.is_completed !== b.is_completed) {
+                return a.is_completed ? 1 : -1
+              }
+              return 0
+            })
+            .map((task) => (
+              <TaskItem 
+                key={task.id} 
+                task={task} 
+                canFlagMore={canFlagMore}
+                allTasks={allTasks || []}
+              />
+            ))}
         </div>
       ) : (
         <div className="text-center py-12">
@@ -76,7 +122,15 @@ export function ProjectTasksList({ projectId }: ProjectTasksListProps) {
   )
 }
 
-function TaskItem({ task }: { task: any }) {
+function TaskItem({ 
+  task, 
+  canFlagMore, 
+  allTasks 
+}: { 
+  task: ProjectTask
+  canFlagMore: boolean
+  allTasks: ProjectTask[]
+}) {
   const [isUpdating, setIsUpdating] = useState(false)
   const updateTask = useUpdateProjectTask()
   const deleteTask = useDeleteProjectTask()
@@ -95,6 +149,29 @@ function TaskItem({ task }: { task: any }) {
     }
   }
 
+  const handleToggleFlag = async () => {
+    // If trying to flag (not unflag), check the limit
+    if (!task.is_flagged) {
+      const flaggedCount = allTasks.filter(t => t.is_flagged).length
+      if (flaggedCount >= 3) {
+        alert('Maximum of 3 tasks can be flagged at once. Please unflag a task first.')
+        return
+      }
+    }
+
+    setIsUpdating(true)
+    try {
+      await updateTask.mutateAsync({
+        id: task.id,
+        is_flagged: !task.is_flagged,
+      })
+    } catch (error) {
+      console.error('Error updating task flag:', error)
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const handleDelete = async () => {
     if (confirm('Are you sure you want to delete this task?')) {
       await deleteTask.mutateAsync(task.id)
@@ -104,6 +181,8 @@ function TaskItem({ task }: { task: any }) {
   return (
     <div className={`bg-white border rounded-lg p-4 ${
       task.is_completed ? 'opacity-75' : ''
+    } ${
+      task.is_flagged ? 'bg-red-50 border-l-4 border-red-500' : ''
     }`}>
       <div className="flex items-center space-x-3">
         <button
@@ -120,11 +199,36 @@ function TaskItem({ task }: { task: any }) {
         
         <div className="flex-1">
           <p className={`text-sm ${
-            task.is_completed ? 'text-gray-500 line-through' : 'text-gray-900'
+            task.is_completed 
+              ? 'text-gray-500 line-through' 
+              : task.is_flagged
+              ? 'text-red-900 font-medium'
+              : 'text-gray-900'
           }`}>
             {task.task_description}
           </p>
         </div>
+
+        <button
+          onClick={handleToggleFlag}
+          disabled={isUpdating || (!task.is_flagged && !canFlagMore)}
+          className={`flex-shrink-0 transition-colors ${
+            task.is_flagged
+              ? 'text-red-600 hover:text-red-700'
+              : !canFlagMore
+              ? 'text-gray-300 cursor-not-allowed'
+              : 'text-gray-400 hover:text-red-500'
+          }`}
+          title={
+            task.is_flagged 
+              ? 'Unflag task' 
+              : !canFlagMore 
+              ? 'Maximum of 3 tasks can be flagged'
+              : 'Flag task'
+          }
+        >
+          <Flag className={`h-4 w-4 ${task.is_flagged ? 'fill-current' : ''}`} />
+        </button>
 
         <button
           onClick={handleDelete}
