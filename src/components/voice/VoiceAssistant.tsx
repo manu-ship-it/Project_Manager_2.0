@@ -1053,16 +1053,23 @@ Do not engage in any conversation that is not about the projects or the business
 
     try {
       await createProject.mutateAsync({
-        project_number: projectNumber,
-        client: client.trim(),
-        project_name: project_name.trim(),
-        project_address: project_address.trim(),
-        project_status: project_status,
-        overall_project_budget: Number(overall_project_budget) || 0,
-        priority_level: priority_level,
-        install_duration: install_duration || 0,
-        date_created: today,
-        install_commencement_date: installDate,
+        proj_num: projectNumber,
+        customer_id: '', // TODO: Get customer_id from client name
+        name: project_name.trim(),
+        address: project_address.trim() || null,
+        status: project_status || 'planning',
+        budget: Number(overall_project_budget) || 0,
+        priority_level: priority_level || 'medium',
+        install_duration: install_duration || null,
+        install_commencement_date: installDate || null,
+        quote: false,
+        created_by: null,
+        description: null,
+        quote_num: null,
+        quote_date: null,
+        valid_until: null,
+        total_amount: 0,
+        markup_percentage: 0,
       })
 
       return {
@@ -1293,7 +1300,7 @@ Do not engage in any conversation that is not about the projects or the business
   const addTaskFunction = async (args: any) => {
     const { project_number, project_name, client, task_description } = args
 
-      if (!task_description || task_description.trim() === '') {
+    if (!task_description || task_description.trim() === '') {
       return { 
         success: false,
         error: 'I need a description for the task. Please tell me what task you want to add.' 
@@ -1321,6 +1328,7 @@ Do not engage in any conversation that is not about the projects or the business
         project_id: project.id,
         task_description: task_description.trim(),
         is_completed: false,
+        is_flagged: false,
       })
 
       return {
@@ -1395,13 +1403,9 @@ Do not engage in any conversation that is not about the projects or the business
 
   const addMaterialFunction = async (args: any) => {
     const { 
-      project_number, 
-      project_name, 
-      client, 
       material_name, 
       thickness, 
       board_size, 
-      quantity, 
       supplier 
     } = args
 
@@ -1420,26 +1424,36 @@ Do not engage in any conversation that is not about the projects or the business
     }
 
     try {
-      const project = await findProjectByIdentifier(project_number, project_name, client)
-      
-      if (!project) {
-        return { 
-          success: false,
-          error: `I couldn't find the project. Please provide a valid project number, project name, or client name.` 
+      // Find supplier by name if provided
+      let supplier_id = null
+      if (supplier && supplier.trim()) {
+        const { data: suppliers } = await supabase
+          .from('suppliers')
+          .select('id')
+          .eq('name', supplier.trim())
+          .limit(1)
+          .single()
+        
+        if (suppliers) {
+          supplier_id = suppliers.id
         }
       }
 
       await createMaterial.mutateAsync({
-        project_id: project.id,
-        material_name: material_name.trim(),
-        thickness: thickness ? Number(thickness) : 0,
-        board_size: board_size ? String(board_size).trim() : '',
-        quantity: quantity ? Number(quantity) : 0,
-        supplier: supplier ? String(supplier).trim() : '',
+        name: material_name.trim(),
+        thickness: thickness ? Number(thickness) : null,
+        board_size: board_size ? String(board_size).trim() : null,
+        supplier_id: supplier_id || null,
+        unit: null,
+        cost_per_unit: null,
+        created_by: null,
+        width: null,
+        material_type: null,
+        length: null,
+        edge_size: null,
       })
 
       const materialDetails = []
-      if (quantity) materialDetails.push(`quantity: ${quantity}`)
       if (thickness) materialDetails.push(`thickness: ${thickness}mm`)
       if (board_size) materialDetails.push(`size: ${board_size}`)
       if (supplier) materialDetails.push(`supplier: ${supplier}`)
@@ -1448,9 +1462,7 @@ Do not engage in any conversation that is not about the projects or the business
 
       return {
         success: true,
-        message: `I've successfully added the material "${material_name.trim()}"${detailsText} to project ${project.project_number || project.project_name}.`,
-        project_number: project.project_number,
-        project_name: project.project_name,
+        message: `I've successfully added the material "${material_name.trim()}"${detailsText} to the materials library.`,
         material_name: material_name.trim(),
       }
     } catch (error) {
@@ -1464,8 +1476,6 @@ Do not engage in any conversation that is not about the projects or the business
   }
 
   const getMaterialsFunction = async (args: any) => {
-    const { project_number, project_name, client } = args
-
     if (!supabase) {
       return { 
         success: false,
@@ -1474,19 +1484,10 @@ Do not engage in any conversation that is not about the projects or the business
     }
 
     try {
-      const project = await findProjectByIdentifier(project_number, project_name, client)
-      
-      if (!project) {
-        return { 
-          success: false,
-          error: `I couldn't find the project. Please provide a valid project number, project name, or client name.` 
-        }
-      }
-
+      // Get all materials from global library
       const { data: materials, error } = await supabase
         .from('materials')
-        .select('*')
-        .eq('project_id', project.id)
+        .select('*, supplier:suppliers(*)')
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -1497,21 +1498,18 @@ Do not engage in any conversation that is not about the projects or the business
       const materialList = materials && materials.length > 0
         ? materials.map((m: any) => {
             const details = []
-            if (m.quantity) details.push(`Qty: ${m.quantity}`)
             if (m.thickness) details.push(`${m.thickness}mm`)
             if (m.board_size) details.push(m.board_size)
-            if (m.supplier) details.push(`Supplier: ${m.supplier}`)
-            return `- ${m.material_name}${details.length > 0 ? ' (' + details.join(', ') + ')' : ''}`
+            if (m.supplier?.name) details.push(`Supplier: ${m.supplier.name}`)
+            return `- ${m.name}${details.length > 0 ? ' (' + details.join(', ') + ')' : ''}`
           }).join('\n')
-        : 'No materials found.'
+        : 'No materials found in the library.'
 
       return {
         success: true,
-        message: `I found ${materialCount} material${materialCount !== 1 ? 's' : ''} for project ${project.project_number || project.project_name}:\n${materialList}`,
+        message: `I found ${materialCount} material${materialCount !== 1 ? 's' : ''} in the materials library:\n${materialList}`,
         materials: materials || [],
         count: materialCount,
-        project_number: project.project_number,
-        project_name: project.project_name,
       }
     } catch (error) {
       console.error('Error getting materials:', error)

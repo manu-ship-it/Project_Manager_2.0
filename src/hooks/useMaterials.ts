@@ -1,20 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase, Material } from '@/lib/supabase'
 
-export function useMaterials(projectId: string) {
+// Get all materials from global library (no project filtering)
+export function useMaterials() {
   return useQuery({
-    queryKey: ['materials', projectId],
+    queryKey: ['materials'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('materials')
-        .select('*')
-        .eq('project_id', projectId)
+        .select(`
+          *,
+          supplier:suppliers(*)
+        `)
         .order('created_at', { ascending: false })
       
       if (error) throw error
-      return data as Material[]
+      // Return with supplier relation included
+      return data as (Material & { supplier?: { id: string; name: string } | null })[]
     },
-    enabled: !!projectId,
   })
 }
 
@@ -32,8 +35,8 @@ export function useCreateMaterial() {
       if (error) throw error
       return data as Material
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['materials', data.project_id] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materials'] })
     },
   })
 }
@@ -53,8 +56,8 @@ export function useUpdateMaterial() {
       if (error) throw error
       return data as Material
     },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['materials', data.project_id] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['materials'] })
     },
   })
 }

@@ -38,6 +38,7 @@ export function ProjectTaskForm({ projectId, onClose, onSuccess }: ProjectTaskFo
         ...data,
         project_id: projectId,
         is_completed: false,
+        is_flagged: false,
       })
       onSuccess()
     } catch (error) {

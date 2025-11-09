@@ -6,8 +6,9 @@ export function useProjects() {
     queryKey: ['projects'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('projects')
-        .select('*')
+        .from('quote_projects')
+        .select('*, customer:customers(*)')
+        .eq('quote', false)
         .order('created_at', { ascending: false })
       
       if (error) throw error
@@ -21,9 +22,10 @@ export function useProject(id: string) {
     queryKey: ['project', id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('projects')
-        .select('*')
+        .from('quote_projects')
+        .select('*, customer:customers(*)')
         .eq('id', id)
+        .eq('quote', false)
         .single()
       
       if (error) throw error
@@ -37,11 +39,11 @@ export function useCreateProject() {
   const queryClient = useQueryClient()
   
   return useMutation({
-    mutationFn: async (projectData: Omit<Project, 'id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (projectData: Omit<Project, 'id' | 'created_at' | 'updated_at' | 'customer'>) => {
       const { data, error } = await supabase
-        .from('projects')
-        .insert([projectData])
-        .select()
+        .from('quote_projects')
+        .insert([{ ...projectData, quote: false }])
+        .select('*, customer:customers(*)')
         .single()
       
       if (error) throw error
@@ -59,10 +61,10 @@ export function useUpdateProject() {
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Project> & { id: string }) => {
       const { data, error } = await supabase
-        .from('projects')
+        .from('quote_projects')
         .update(updates)
         .eq('id', id)
-        .select()
+        .select('*, customer:customers(*)')
         .single()
       
       if (error) throw error
@@ -81,7 +83,7 @@ export function useDeleteProject() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('projects')
+        .from('quote_projects')
         .delete()
         .eq('id', id)
       
