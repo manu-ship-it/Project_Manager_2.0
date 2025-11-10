@@ -7,11 +7,12 @@ import { useTemplateCabinets } from '@/hooks/useTemplateCabinets'
 import { useSettingValue } from '@/hooks/useSettings'
 import { Cabinet, JoineryItem, Material } from '@/lib/supabase'
 
-interface QuoteJoineryItemCabinetsProps {
+export interface QuoteJoineryItemCabinetsProps {
   joineryItem: JoineryItem
+  onTotalCostChange?: (totalCost: number) => void
 }
 
-export function QuoteJoineryItemCabinets({ joineryItem }: QuoteJoineryItemCabinetsProps) {
+export function QuoteJoineryItemCabinets({ joineryItem, onTotalCostChange }: QuoteJoineryItemCabinetsProps) {
   const [editingCabinet, setEditingCabinet] = useState<Cabinet | null>(null)
   const [selectedCabinets, setSelectedCabinets] = useState<Set<string>>(new Set())
   const [bulkFaceMaterial, setBulkFaceMaterial] = useState<1 | 2 | 3 | 4 | ''>('')
@@ -529,6 +530,13 @@ export function QuoteJoineryItemCabinets({ joineryItem }: QuoteJoineryItemCabine
   const totalCabinetCost = useMemo(() => {
     return cabinetCosts.reduce((sum, item) => sum + item.totalCost, 0)
   }, [cabinetCosts])
+
+  // Report total cost changes to parent
+  useEffect(() => {
+    if (onTotalCostChange) {
+      onTotalCostChange(totalCabinetCost)
+    }
+  }, [totalCabinetCost, onTotalCostChange])
 
   if (cabinetsLoading) {
     return (
