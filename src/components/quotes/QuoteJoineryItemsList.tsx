@@ -43,6 +43,23 @@ export function QuoteJoineryItemsList({
   const deleteItem = useDeleteQuoteJoineryItem()
   const updateQuote = useUpdateQuoteProject()
   
+  // Track cabinet costs from middle panel (single source of truth)
+  const [itemCabinetCosts, setItemCabinetCosts] = useState<Record<string, number>>({})
+  
+  // Handle cabinet cost changes from middle panel
+  const handleCabinetCostChange = useCallback((itemId: string, cost: number) => {
+    setItemCabinetCosts(prev => {
+      // Only update if the cost actually changed
+      if (prev[itemId] === cost) return prev
+      return { ...prev, [itemId]: cost }
+    })
+  }, [])
+  
+  // Calculate total cabinet cost from collected costs
+  const totalCabinetCost = useMemo(() => {
+    return Object.values(itemCabinetCosts).reduce((sum, cost) => sum + cost, 0)
+  }, [itemCabinetCosts])
+  
   // Get markup percentage from quote, default to 40 if not available
   const markupPercentage = quote?.markup_percentage?.toString() || '40'
   
@@ -310,6 +327,16 @@ export function QuoteJoineryItemsList({
   if (selectedItem) {
     return (
       <div className="p-6 space-y-6">
+        {/* Hidden components to calculate costs for all items (not just selected) */}
+        {safeItems.map(item => (
+          <div key={`hidden-${item.id}`} style={{ display: 'none' }}>
+            <QuoteJoineryItemCabinets 
+              joineryItem={item}
+              onTotalCostChange={(cost) => handleCabinetCostChange(item.id, cost)}
+            />
+          </div>
+        ))}
+
         <div className="flex justify-between items-start">
           <div>
             {selectedItem.description && (
@@ -343,6 +370,7 @@ export function QuoteJoineryItemsList({
           onEdit={setEditingItem}
           onUpdate={handleUpdate}
           onDelete={handleDelete}
+          onCabinetCostChange={handleCabinetCostChange}
         />
       </div>
     )
@@ -352,6 +380,15 @@ export function QuoteJoineryItemsList({
   if (showTotal) {
     return (
       <div className="p-4">
+        {/* Hidden components to calculate costs for all items */}
+        {items && items.map(item => (
+          <div key={`hidden-cabinets-${item.id}`} style={{ display: 'none' }}>
+            <QuoteJoineryItemCabinets 
+              joineryItem={item}
+              onTotalCostChange={(cost) => handleCabinetCostChange(item.id, cost)}
+            />
+          </div>
+        ))}
         {items && items.length > 0 ? (
           <QuoteTotalSummary
             items={items}
@@ -359,6 +396,7 @@ export function QuoteJoineryItemsList({
             onMarkupChange={handleMarkupChange}
             factoryRate={FACTORY_RATE}
             installRate={INSTALL_RATE}
+            totalCabinetCost={totalCabinetCost}
             calculateSquareMeterRate={calculateSquareMeterRate}
             calculateCarcassCost={calculateCarcassCost}
             calculateFaceCost={calculateFaceCost}
@@ -411,6 +449,7 @@ export function QuoteJoineryItemsList({
               onEdit={setEditingItem}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
+              onCabinetCostChange={handleCabinetCostChange}
             />
           ))}
         </div>
@@ -440,6 +479,7 @@ export function QuoteJoineryItemsList({
           onMarkupChange={handleMarkupChange}
           factoryRate={FACTORY_RATE}
           installRate={INSTALL_RATE}
+          totalCabinetCost={totalCabinetCost}
           calculateSquareMeterRate={calculateSquareMeterRate}
           calculateCarcassCost={calculateCarcassCost}
           calculateFaceCost={calculateFaceCost}
@@ -455,6 +495,7 @@ function QuoteTotalSummary({
   onMarkupChange,
   factoryRate,
   installRate,
+  totalCabinetCost,
   calculateSquareMeterRate,
   calculateCarcassCost,
   calculateFaceCost,
@@ -464,6 +505,7 @@ function QuoteTotalSummary({
   onMarkupChange: (value: string) => Promise<void>
   factoryRate: number
   installRate: number
+  totalCabinetCost: number
   calculateSquareMeterRate: (material: Material | null | undefined) => number | null
   calculateCarcassCost: (cabinet: any, squareMeterRate: number | null) => number
   calculateFaceCost: (cabinet: any, faceMaterial: Material | null | undefined) => number
@@ -497,27 +539,12 @@ function QuoteTotalSummary({
     }, 0)
   }, [items, factoryRate, installRate])
 
-  // Get cabinet costs from all items
-  const [itemCabinetCosts, setItemCabinetCosts] = useState<Record<string, number>>({})
-  
   // Get specialized items costs from all items
   const [itemSpecializedCosts, setItemSpecializedCosts] = useState<Record<string, number>>({})
   
-  const totalCabinetCost = useMemo(() => {
-    return Object.values(itemCabinetCosts).reduce((sum, cost) => sum + cost, 0)
-  }, [itemCabinetCosts])
-
   const totalSpecializedCost = useMemo(() => {
     return Object.values(itemSpecializedCosts).reduce((sum, cost) => sum + cost, 0)
   }, [itemSpecializedCosts])
-
-  const handleItemCostChange = useCallback((itemId: string, cost: number) => {
-    setItemCabinetCosts(prev => {
-      // Only update if the cost actually changed
-      if (prev[itemId] === cost) return prev
-      return { ...prev, [itemId]: cost }
-    })
-  }, [])
 
   const handleSpecializedCostChange = useCallback((itemId: string, cost: number) => {
     setItemSpecializedCosts(prev => {
@@ -533,18 +560,6 @@ function QuoteTotalSummary({
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quote Total</h3>
         
         <div className="space-y-3">
-          {/* Hidden components to calculate cabinet costs */}
-          {items.map(item => (
-            <ItemCabinetCosts
-              key={item.id}
-              item={item}
-              calculateSquareMeterRate={calculateSquareMeterRate}
-              calculateCarcassCost={calculateCarcassCost}
-              calculateFaceCost={calculateFaceCost}
-              onCostChange={(cost) => handleItemCostChange(item.id, cost)}
-            />
-          ))}
-
           {/* Hidden components to calculate specialized items costs */}
           {items.map(item => (
             <ItemSpecializedCosts
@@ -639,33 +654,177 @@ function ItemCabinetCosts({
 }) {
   const { data: cabinets } = useCabinets(item.id)
   
-  // Calculate number of hinges per cabinet based on type, category, and height
-  const calculateHingesPerCabinet = (cabinet: any): number => {
-    const cabinetType = (cabinet.type || cabinet.template_cabinet?.type || '').toLowerCase()
-    const cabinetCategory = (cabinet.category || cabinet.template_cabinet?.category || '').toLowerCase()
+  // Evaluate area calculation formula (e.g., "(2 * depth * height) + (width * height) + ((1.1+shelf_qty) * width * depth)")
+  // Dimensions are in mm, formula result is in mm², we convert to m² at the end
+  const evaluateAreaFormula = (
+    formula: string | null | undefined,
+    width: number,
+    height: number,
+    depth: number,
+    shelfQty: number,
+    drawerQty: number,
+    doorQty: number,
+    endPanelsQty: number
+  ): number => {
+    if (!formula || formula.trim() === '0' || formula.trim() === '') {
+      return 0
+    }
+    
+    // Replace variables with actual values (all in mm)
+    let expression = formula
+      .replace(/width/g, width.toString())
+      .replace(/height/g, height.toString())
+      .replace(/depth/g, depth.toString())
+      .replace(/shelf_qty/g, shelfQty.toString())
+      .replace(/drawer_qty/g, drawerQty.toString())
+      .replace(/door_qty/g, doorQty.toString())
+      .replace(/end_panels_qty/g, endPanelsQty.toString())
+    
+    // Evaluate the expression safely
+    try {
+      // Use Function constructor for safe evaluation
+      const result = new Function('return ' + expression)()
+      // Convert from mm² to m² (divide by 1,000,000)
+      return result / 1000000
+    } catch (error) {
+      console.error('Error evaluating area formula:', formula, error)
+      return 0
+    }
+  }
+
+  // Calculate carcass cost for a cabinet (with template formula support)
+  const calculateCarcassCostWithFormula = (cabinet: any, squareMeterRate: number | null): number => {
+    if (!squareMeterRate) return 0
+
+    const cabinetWidth = cabinet.width ?? cabinet.template_cabinet?.width ?? 0
     const cabinetHeight = cabinet.height ?? cabinet.template_cabinet?.height ?? 0
+    const cabinetDepth = cabinet.depth ?? cabinet.template_cabinet?.depth ?? 0
 
-    // Extract door count from type (e.g., "door_1" = 1, "door_2" = 2)
-    const doorMatch = cabinetType.match(/door[_\s]*(\d+)/)
-    const doorCount = doorMatch ? parseInt(doorMatch[1]) : 0
-
-    // If no doors, return 0 hinges
-    if (doorCount === 0) return 0
-
-    // Check if it's a tall cabinet
-    const isTall = cabinetCategory.includes('tall') || cabinetType.includes('tall')
-
-    let hingesPerDoor: number
-
-    if (isTall) {
-      // Tall cabinets: 5 hinges per door regardless of height
-      hingesPerDoor = 5
-    } else {
-      // Base/Wall cabinets: ≤900mm = 2 hinges per door, >900mm = 3 hinges per door
-      hingesPerDoor = cabinetHeight <= 900 ? 2 : 3
+    if (cabinetWidth <= 0 || cabinetHeight <= 0 || cabinetDepth <= 0) {
+      return 0
     }
 
-    return hingesPerDoor * doorCount
+    const shelfQty = cabinet.shelf_qty ?? cabinet.template_cabinet?.shelf_qty ?? 0
+    const drawerQty = cabinet.drawer_qty ?? cabinet.template_cabinet?.drawer_qty ?? 0
+    const doorQty = cabinet.door_qty ?? cabinet.template_cabinet?.door_qty ?? 0
+    const endPanelsQty = cabinet.end_panels_qty ?? cabinet.template_cabinet?.end_panels_qty ?? 0
+
+    // Get carcass calculation formula from template
+    const carcassFormula = cabinet.template_cabinet?.carcass_calculation
+
+    let areaInSquareMeters: number
+
+    if (carcassFormula) {
+      // Use template formula (dimensions in mm, formula evaluates to mm², we convert to m²)
+      areaInSquareMeters = evaluateAreaFormula(
+        carcassFormula,
+        cabinetWidth,
+        cabinetHeight,
+        cabinetDepth,
+        shelfQty,
+        drawerQty,
+        doorQty,
+        endPanelsQty
+      )
+    } else {
+      // Fallback to passed calculateCarcassCost function
+      return calculateCarcassCost(cabinet, squareMeterRate)
+    }
+
+    const cost = squareMeterRate * areaInSquareMeters * cabinet.quantity
+
+    return cost
+  }
+
+  // Calculate face material cost for a cabinet (with template formula support)
+  const calculateFaceCostWithFormula = (cabinet: any, faceMaterial: Material | null | undefined): number => {
+    if (!faceMaterial || faceMaterial.material_type !== 'Board/Laminate') {
+      return 0
+    }
+
+    const cabinetWidth = cabinet.width ?? cabinet.template_cabinet?.width ?? 0
+    const cabinetHeight = cabinet.height ?? cabinet.template_cabinet?.height ?? 0
+    const cabinetDepth = cabinet.depth ?? cabinet.template_cabinet?.depth ?? 0
+
+    if (cabinetWidth <= 0 || cabinetHeight <= 0) {
+      return 0
+    }
+
+    // Calculate square meter rate for face material
+    const faceSquareMeterRate = calculateSquareMeterRate(faceMaterial)
+    if (!faceSquareMeterRate) return 0
+
+    const shelfQty = cabinet.shelf_qty ?? cabinet.template_cabinet?.shelf_qty ?? 0
+    const drawerQty = cabinet.drawer_qty ?? cabinet.template_cabinet?.drawer_qty ?? 0
+    const doorQty = cabinet.door_qty ?? cabinet.template_cabinet?.door_qty ?? 0
+    const endPanelsQty = cabinet.end_panels_qty ?? cabinet.template_cabinet?.end_panels_qty ?? 0
+
+    // Get face calculation formula from template
+    const faceFormula = cabinet.template_cabinet?.face_calculation
+
+    let areaInSquareMeters: number
+
+    if (faceFormula) {
+      // Use template formula (dimensions in mm, formula evaluates to mm², we convert to m²)
+      areaInSquareMeters = evaluateAreaFormula(
+        faceFormula,
+        cabinetWidth,
+        cabinetHeight,
+        cabinetDepth,
+        shelfQty,
+        drawerQty,
+        doorQty,
+        endPanelsQty
+      )
+    } else {
+      // Fallback to passed calculateFaceCost function
+      return calculateFaceCost(cabinet, faceMaterial)
+    }
+
+    const faceCost = faceSquareMeterRate * areaInSquareMeters * cabinet.quantity
+
+    return faceCost
+  }
+
+  // Evaluate formula string (e.g., "door_qty*2" or "drawer_qty*1")
+  const evaluateFormula = (formula: string | null | undefined, doorQty: number, drawerQty: number): number => {
+    if (!formula) return 0
+    
+    // If it's just a number, return it
+    if (/^\d+$/.test(formula.trim())) {
+      return parseInt(formula.trim())
+    }
+    
+    // Replace variables with actual values
+    let expression = formula
+      .replace(/door_qty/g, doorQty.toString())
+      .replace(/drawer_qty/g, drawerQty.toString())
+    
+    // Evaluate the expression safely
+    try {
+      // Use Function constructor for safe evaluation
+      const result = new Function('return ' + expression)()
+      return Math.round(result) || 0
+    } catch (error) {
+      console.error('Error evaluating formula:', formula, error)
+      return 0
+    }
+  }
+
+  // Calculate number of hinges per cabinet (using formula from template)
+  const calculateHingesPerCabinet = (cabinet: any): number => {
+    const doorQty = cabinet.door_qty ?? cabinet.template_cabinet?.door_qty ?? 0
+    const drawerQty = cabinet.drawer_qty ?? cabinet.template_cabinet?.drawer_qty ?? 0
+    
+    // Try to use hinge_qty formula from cabinet or template
+    const hingeQtyFormula = cabinet.hinge_qty || cabinet.template_cabinet?.hinge_qty
+    
+    if (hingeQtyFormula) {
+      return evaluateFormula(hingeQtyFormula, doorQty, drawerQty)
+    }
+    
+    // Fallback: if no formula, return 0 (no automatic calculation)
+    return 0
   }
 
   // Calculate hinge cost for a cabinet
@@ -684,15 +843,19 @@ function ItemCabinetCosts({
     return totalCost
   }
 
-  // Calculate number of drawer hardware per cabinet based on type
+  // Calculate number of drawer hardware per cabinet (using formula from template)
   const calculateDrawerHardwarePerCabinet = (cabinet: any): number => {
-    const cabinetType = (cabinet.type || cabinet.template_cabinet?.type || '').toLowerCase()
-
-    // Extract drawer count from type (e.g., "drawer_1" = 1, "drawer_2" = 2)
-    const drawerMatch = cabinetType.match(/drawer[_\s]*(\d+)/)
-    const drawerCount = drawerMatch ? parseInt(drawerMatch[1]) : 0
-
-    return drawerCount
+    const drawerQty = cabinet.drawer_qty ?? cabinet.template_cabinet?.drawer_qty ?? 0
+    
+    // Try to use drawer_hardware_qty formula from cabinet or template
+    const drawerHardwareQtyFormula = cabinet.drawer_hardware_qty || cabinet.template_cabinet?.drawer_hardware_qty
+    
+    if (drawerHardwareQtyFormula) {
+      return evaluateFormula(drawerHardwareQtyFormula, 0, drawerQty)
+    }
+    
+    // Fallback: if no formula but drawer_qty exists, use 1:1 ratio
+    return drawerQty
   }
 
   // Calculate drawer hardware cost for a cabinet
@@ -718,14 +881,14 @@ function ItemCabinetCosts({
     let total = 0
     
     cabinets.forEach(cabinet => {
-      const carcassCost = calculateCarcassCost(cabinet, carcassSquareMeterRate)
+      const carcassCost = calculateCarcassCostWithFormula(cabinet, carcassSquareMeterRate)
       
       const faceMaterial = cabinet.assigned_face_material === 1 ? item.face_material_1 :
                           cabinet.assigned_face_material === 2 ? item.face_material_2 :
                           cabinet.assigned_face_material === 3 ? item.face_material_3 :
                           cabinet.assigned_face_material === 4 ? item.face_material_4 : null
       
-      const faceCost = calculateFaceCost(cabinet, faceMaterial)
+      const faceCost = calculateFaceCostWithFormula(cabinet, faceMaterial)
       const hingeCost = calculateHingeCost(cabinet)
       const drawerHardwareCost = calculateDrawerHardwareCost(cabinet)
       
@@ -793,12 +956,14 @@ function QuoteJoineryItemCard({
   onEdit,
   onUpdate,
   onDelete,
+  onCabinetCostChange,
 }: {
   item: JoineryItem
   quoteId: string
   onEdit: (item: JoineryItem) => void
   onUpdate: (id: string, updates: Partial<JoineryItem>) => void
   onDelete: (id: string) => void
+  onCabinetCostChange?: (itemId: string, cost: number) => void
 }) {
   const FACTORY_RATE = 50 // $50/hour
   const INSTALL_RATE = 80 // $80/hour
@@ -846,6 +1011,7 @@ function QuoteJoineryItemCard({
           <div className="pt-4 border-t-4 border-gray-400">
             <QuoteJoineryItemCabinets 
               joineryItem={item}
+              onTotalCostChange={(cost) => onCabinetCostChange?.(item.id, cost)}
             />
           </div>
 
