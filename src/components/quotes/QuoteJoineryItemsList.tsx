@@ -46,9 +46,21 @@ export function QuoteJoineryItemsList({
   // Track cabinet costs from middle panel (single source of truth)
   const [itemCabinetCosts, setItemCabinetCosts] = useState<Record<string, number>>({})
   
+  // Track specialized items costs per item
+  const [itemSpecializedCosts, setItemSpecializedCosts] = useState<Record<string, number>>({})
+  
   // Handle cabinet cost changes from middle panel
   const handleCabinetCostChange = useCallback((itemId: string, cost: number) => {
     setItemCabinetCosts(prev => {
+      // Only update if the cost actually changed
+      if (prev[itemId] === cost) return prev
+      return { ...prev, [itemId]: cost }
+    })
+  }, [])
+  
+  // Handle specialized items cost changes
+  const handleSpecializedCostChange = useCallback((itemId: string, cost: number) => {
+    setItemSpecializedCosts(prev => {
       // Only update if the cost actually changed
       if (prev[itemId] === cost) return prev
       return { ...prev, [itemId]: cost }
@@ -277,25 +289,64 @@ export function QuoteJoineryItemsList({
 
   // Compact view for left column
   if (compact) {
+    // Calculate total cost for each item (with markup)
+    const calculateItemTotal = (item: JoineryItem): number => {
+      const cabinetCost = itemCabinetCosts[item.id] || 0
+      const specializedCost = itemSpecializedCosts[item.id] || 0
+      const factoryCost = (item.factory_hours || 0) * FACTORY_RATE
+      const installCost = (item.install_hours || 0) * INSTALL_RATE
+      const subtotal = cabinetCost + specializedCost + factoryCost + installCost
+      const markupMultiplier = 1 + (parseFloat(markupPercentage) || 0) / 100
+      return subtotal * markupMultiplier
+    }
+
     return (
       <div className="p-2">
+        {/* Hidden components to calculate costs for all items */}
+        {sortedItems && sortedItems.map(item => (
+          <div key={`hidden-cabinets-${item.id}`} style={{ display: 'none' }}>
+            <QuoteJoineryItemCabinets 
+              joineryItem={item}
+              onTotalCostChange={(cost) => handleCabinetCostChange(item.id, cost)}
+            />
+          </div>
+        ))}
+        {sortedItems && sortedItems.map(item => (
+          <div key={`hidden-specialized-${item.id}`} style={{ display: 'none' }}>
+            <ItemSpecializedCosts
+              item={item}
+              onCostChange={(cost) => handleSpecializedCostChange(item.id, cost)}
+            />
+          </div>
+        ))}
+        
         {sortedItems && sortedItems.length > 0 ? (
           <div className="space-y-1">
-            {sortedItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  onSelectItem?.(item)
-                }}
-                className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                  selectedItem?.id === item.id
-                    ? 'bg-blue-100 text-blue-900 font-medium'
-                    : 'hover:bg-gray-100 text-gray-700'
-                }`}
-              >
-                {item.joinery_number || 'No Number'}
-              </button>
-            ))}
+            {sortedItems.map((item) => {
+              const itemTotal = calculateItemTotal(item)
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    onSelectItem?.(item)
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                    selectedItem?.id === item.id
+                      ? 'bg-blue-100 text-blue-900 font-medium'
+                      : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="truncate">{item.joinery_number || 'No Number'}</span>
+                    {itemTotal > 0 && (
+                      <span className="ml-2 text-xs font-semibold text-gray-900 whitespace-nowrap">
+                        ${itemTotal.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         ) : (
           <div className="p-4 text-center text-sm text-gray-500">
