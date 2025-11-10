@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { Plus, Search, Filter, Mic, LayoutGrid, List } from 'lucide-react'
-import { ProjectCard, ProjectForm, ProjectDetailModal } from '@/components/projects'
+import { ProjectCard } from '@/components/projects/ProjectCard'
+import { ProjectForm } from '@/components/projects/ProjectForm'
+import { ProjectDetailModal } from '@/components/projects/ProjectDetailModal'
 import { VoiceAssistant } from '@/components/voice/VoiceAssistant'
 import { QuoteProject } from '@/lib/supabase'
 import { useProjects, useUpdateQuoteProject } from '@/hooks/useQuoteProjects'
