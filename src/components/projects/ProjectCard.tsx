@@ -218,5 +218,3 @@ export function ProjectCard({ project, daysUntilInstall, urgencyColor, onEdit, o
     </div>
   )
 }
-
-
