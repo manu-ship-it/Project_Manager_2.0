@@ -4,9 +4,6 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Plus, Edit, Trash2, DollarSign, Package, X } from 'lucide-react'
 import { useQuoteJoineryItems, useCreateQuoteJoineryItem, useUpdateQuoteJoineryItem, useDeleteQuoteJoineryItem } from '@/hooks/useQuoteJoineryItems'
 import { useQuoteProject, useUpdateQuoteProject } from '@/hooks/useQuoteProjects'
-import { useCabinets } from '@/hooks/useCabinets'
-import { useSpecializedItems } from '@/hooks/useSpecializedItems'
-import { useSettingValue } from '@/hooks/useSettings'
 import { JoineryItem, Material } from '@/lib/supabase'
 import { QuoteJoineryItemMaterials } from './QuoteJoineryItemMaterials'
 import { QuoteJoineryItemCabinets } from './QuoteJoineryItemCabinets'
@@ -43,22 +40,29 @@ export function QuoteJoineryItemsList({
   const deleteItem = useDeleteQuoteJoineryItem()
   const updateQuote = useUpdateQuoteProject()
   
-  // Track cabinet costs from middle panel (single source of truth)
-  const [itemCabinetCosts, setItemCabinetCosts] = useState<Record<string, number>>({})
-  
-  // Handle cabinet cost changes from middle panel
-  const handleCabinetCostChange = useCallback((itemId: string, cost: number) => {
-    setItemCabinetCosts(prev => {
-      // Only update if the cost actually changed
-      if (prev[itemId] === cost) return prev
-      return { ...prev, [itemId]: cost }
-    })
-  }, [])
-  
-  // Calculate total cabinet cost from collected costs
+  // Calculate totals from pre-calculated database values
+  // TODO: Debug - check if database values are being populated correctly
   const totalCabinetCost = useMemo(() => {
-    return Object.values(itemCabinetCosts).reduce((sum, cost) => sum + cost, 0)
-  }, [itemCabinetCosts])
+    const dbSum = safeItems.reduce((sum, item) => sum + (item.calculated_cabinet_cost || 0), 0)
+    // Debug logging
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Database calculated_cabinet_cost values:', safeItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        calculated_cabinet_cost: item.calculated_cabinet_cost
+      })))
+      console.log('Total cabinet cost from DB:', dbSum)
+    }
+    return dbSum
+  }, [safeItems])
+  
+  const totalSpecializedCost = useMemo(() => {
+    return safeItems.reduce((sum, item) => sum + (item.calculated_specialized_cost || 0), 0)
+  }, [safeItems])
+  
+  const totalHoursCost = useMemo(() => {
+    return safeItems.reduce((sum, item) => sum + (item.calculated_hours_cost || 0), 0)
+  }, [safeItems])
   
   // Get markup percentage from quote, default to 40 if not available
   const markupPercentage = quote?.markup_percentage?.toString() || '40'
@@ -96,102 +100,8 @@ export function QuoteJoineryItemsList({
     })
   }, [items])
 
-  const FACTORY_RATE = 50 // $50/hour
-  const INSTALL_RATE = 80 // $80/hour
-
-  // Get cut and edge cost setting
-  const { value: cutAndEdgeCost } = useSettingValue('cut_and_edge_cost_per_sheet', 110)
-
-  // Calculate square meter rate for materials
-  const calculateSquareMeterRate = useCallback((material: Material | null | undefined): number | null => {
-    if (!material || material.material_type !== 'Board/Laminate') {
-      return null
-    }
-    
-    if (
-      material.cost_per_unit !== null &&
-      material.cost_per_unit !== undefined &&
-      material.length !== null &&
-      material.length !== undefined &&
-      material.width !== null &&
-      material.width !== undefined &&
-      material.length > 0 &&
-      material.width > 0
-    ) {
-      // Calculate area in square meters: (length × width) / 1000000 (converting mm² to m²)
-      const areaInSquareMeters = (material.length * material.width) / 1000000
-      
-      // Calculate square meter rate: (cost_per_unit + cut_and_edge_cost) / area_in_square_meters
-      return (material.cost_per_unit + cutAndEdgeCost) / areaInSquareMeters
-    }
-    
-    return null
-  }, [cutAndEdgeCost])
-
-  // Calculate carcass cost for a cabinet
-  const calculateCarcassCost = (cabinet: any, squareMeterRate: number | null): number => {
-    if (!squareMeterRate) return 0
-
-    const cabinetWidth = cabinet.width ?? cabinet.template_cabinet?.width ?? 0
-    const cabinetHeight = cabinet.height ?? cabinet.template_cabinet?.height ?? 0
-    const cabinetDepth = cabinet.depth ?? cabinet.template_cabinet?.depth ?? 0
-
-    if (cabinetWidth <= 0 || cabinetHeight <= 0 || cabinetDepth <= 0) {
-      return 0
-    }
-
-    const widthM = cabinetWidth / 1000
-    const heightM = cabinetHeight / 1000
-    const depthM = cabinetDepth / 1000
-
-    // Check if cabinet is tall or wall type
-    const cabinetType = (cabinet.type || cabinet.template_cabinet?.type || '').toLowerCase()
-    const cabinetCategory = (cabinet.category || cabinet.template_cabinet?.category || '').toLowerCase()
-    const isTallOrWall = cabinetType.includes('tall') || cabinetType.includes('wall') || 
-                         cabinetCategory.includes('tall') || cabinetCategory.includes('wall')
-
-    let areaInSquareMeters: number
-
-    if (isTallOrWall) {
-      // Tall and wall carcass cost calc = carcass_sqm_rate * (width * ((2*depth)+height) + (2*depth*height))
-      areaInSquareMeters = (widthM * ((2 * depthM) + heightM)) + (2 * depthM * heightM)
-    } else {
-      // Standard cabinet formula: (material_square_meter_rate) * ((width*(depth+height+0.1))+2*Depth*Height)
-      areaInSquareMeters = (widthM * (depthM + heightM + 0.1)) + (2 * depthM * heightM)
-    }
-
-    const cost = squareMeterRate * areaInSquareMeters * cabinet.quantity
-
-    return cost
-  }
-
-  // Calculate face cost for a cabinet
-  const calculateFaceCost = (cabinet: any, faceMaterial: Material | null | undefined): number => {
-    if (!faceMaterial || faceMaterial.material_type !== 'Board/Laminate') {
-      return 0
-    }
-
-    const cabinetWidth = cabinet.width ?? cabinet.template_cabinet?.width ?? 0
-    const cabinetHeight = cabinet.height ?? cabinet.template_cabinet?.height ?? 0
-
-    if (cabinetWidth <= 0 || cabinetHeight <= 0) {
-      return 0
-    }
-
-    const faceSquareMeterRate = calculateSquareMeterRate(faceMaterial)
-    if (!faceSquareMeterRate) return 0
-
-    const widthM = cabinetWidth / 1000
-    const heightM = cabinetHeight / 1000
-
-    const areaInSquareMeters = widthM * heightM
-    const cost = faceSquareMeterRate * areaInSquareMeters * cabinet.quantity
-
-    return cost
-  }
-
-  // Calculate total costs for all joinery items
-  // This will be calculated by the QuoteTotalSummary component that has access to all cabinet data
+  // Note: All cost calculations are now done in the database via triggers
+  // We just read the pre-calculated values from joinery_item and quote_project
 
   const handleAdd = async (joineryNumber: string, description: string, qty: number) => {
     try {
@@ -277,25 +187,43 @@ export function QuoteJoineryItemsList({
 
   // Compact view for left column
   if (compact) {
+    // Calculate total cost for each item (with markup) using pre-calculated values
+    const calculateItemTotal = (item: JoineryItem): number => {
+      const subtotal = item.calculated_total_cost || 0
+      const markupMultiplier = 1 + (parseFloat(markupPercentage) || 0) / 100
+      return subtotal * markupMultiplier
+    }
+
     return (
       <div className="p-2">
+        
         {sortedItems && sortedItems.length > 0 ? (
           <div className="space-y-1">
-            {sortedItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  onSelectItem?.(item)
-                }}
-                className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
-                  selectedItem?.id === item.id
-                    ? 'bg-blue-100 text-blue-900 font-medium'
-                    : 'hover:bg-gray-100 text-gray-700'
-                }`}
-              >
-                {item.joinery_number || 'No Number'}
-              </button>
-            ))}
+            {sortedItems.map((item) => {
+              const itemTotal = calculateItemTotal(item)
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    onSelectItem?.(item)
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                    selectedItem?.id === item.id
+                      ? 'bg-blue-100 text-blue-900 font-medium'
+                      : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="truncate">{item.joinery_number || 'No Number'}</span>
+                    {itemTotal > 0 && (
+                      <span className="ml-2 text-xs font-semibold text-gray-900 whitespace-nowrap">
+                        ${itemTotal.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         ) : (
           <div className="p-4 text-center text-sm text-gray-500">
@@ -327,6 +255,8 @@ export function QuoteJoineryItemsList({
   if (selectedItem) {
     return (
       <div className="p-6 space-y-6">
+        {/* Costs are now calculated in database via triggers */}
+
         <div className="flex justify-between items-start">
           <div>
             {selectedItem.description && (
@@ -360,7 +290,7 @@ export function QuoteJoineryItemsList({
           onEdit={setEditingItem}
           onUpdate={handleUpdate}
           onDelete={handleDelete}
-          onCabinetCostChange={handleCabinetCostChange}
+          onCabinetCostChange={undefined} // Costs are now calculated in database
         />
       </div>
     )
@@ -370,17 +300,17 @@ export function QuoteJoineryItemsList({
   if (showTotal) {
     return (
       <div className="p-4">
+        {/* Costs are now calculated in database via triggers */}
         {items && items.length > 0 ? (
           <QuoteTotalSummary
+            quoteId={quoteId}
             items={items}
             markupPercentage={markupPercentage}
             onMarkupChange={handleMarkupChange}
-            factoryRate={FACTORY_RATE}
-            installRate={INSTALL_RATE}
             totalCabinetCost={totalCabinetCost}
-            calculateSquareMeterRate={calculateSquareMeterRate}
-            calculateCarcassCost={calculateCarcassCost}
-            calculateFaceCost={calculateFaceCost}
+            totalSpecializedCost={totalSpecializedCost}
+            totalHoursCost={totalHoursCost}
+            updateQuote={updateQuote}
           />
         ) : (
           <div className="text-center text-gray-500 py-8">
@@ -430,7 +360,7 @@ export function QuoteJoineryItemsList({
               onEdit={setEditingItem}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
-              onCabinetCostChange={handleCabinetCostChange}
+              onCabinetCostChange={undefined} // Costs are now calculated in database
             />
           ))}
         </div>
@@ -455,15 +385,14 @@ export function QuoteJoineryItemsList({
       {/* Quote Total Summary */}
       {safeItems.length > 0 && (
         <QuoteTotalSummary
+          quoteId={quoteId}
           items={safeItems}
           markupPercentage={markupPercentage}
           onMarkupChange={handleMarkupChange}
-          factoryRate={FACTORY_RATE}
-          installRate={INSTALL_RATE}
           totalCabinetCost={totalCabinetCost}
-          calculateSquareMeterRate={calculateSquareMeterRate}
-          calculateCarcassCost={calculateCarcassCost}
-          calculateFaceCost={calculateFaceCost}
+          totalSpecializedCost={totalSpecializedCost}
+          totalHoursCost={totalHoursCost}
+          updateQuote={updateQuote}
         />
       )}
     </div>
@@ -471,26 +400,25 @@ export function QuoteJoineryItemsList({
 }
 
 function QuoteTotalSummary({
+  quoteId,
   items,
   markupPercentage,
   onMarkupChange,
-  factoryRate,
-  installRate,
   totalCabinetCost,
-  calculateSquareMeterRate,
-  calculateCarcassCost,
-  calculateFaceCost,
+  totalSpecializedCost,
+  totalHoursCost,
+  updateQuote,
 }: {
+  quoteId: string
   items: JoineryItem[]
   markupPercentage: string
   onMarkupChange: (value: string) => Promise<void>
-  factoryRate: number
-  installRate: number
   totalCabinetCost: number
-  calculateSquareMeterRate: (material: Material | null | undefined) => number | null
-  calculateCarcassCost: (cabinet: any, squareMeterRate: number | null) => number
-  calculateFaceCost: (cabinet: any, faceMaterial: Material | null | undefined) => number
+  totalSpecializedCost: number
+  totalHoursCost: number
+  updateQuote: ReturnType<typeof useUpdateQuoteProject>
 }) {
+  const { data: quote } = useQuoteProject(quoteId)
   const [localMarkup, setLocalMarkup] = useState(markupPercentage)
   
   // Sync local state when prop changes
@@ -511,29 +439,10 @@ function QuoteTotalSummary({
       (e.currentTarget as HTMLInputElement).blur()
     }
   }
-  // Calculate hours cost
-  const totalHoursCost = useMemo(() => {
-    return items.reduce((sum, item) => {
-      const factoryCost = (item.factory_hours || 0) * factoryRate
-      const installCost = (item.install_hours || 0) * installRate
-      return sum + factoryCost + installCost
-    }, 0)
-  }, [items, factoryRate, installRate])
 
-  // Get specialized items costs from all items
-  const [itemSpecializedCosts, setItemSpecializedCosts] = useState<Record<string, number>>({})
-  
-  const totalSpecializedCost = useMemo(() => {
-    return Object.values(itemSpecializedCosts).reduce((sum, cost) => sum + cost, 0)
-  }, [itemSpecializedCosts])
-
-  const handleSpecializedCostChange = useCallback((itemId: string, cost: number) => {
-    setItemSpecializedCosts(prev => {
-      // Only update if the cost actually changed
-      if (prev[itemId] === cost) return prev
-      return { ...prev, [itemId]: cost }
-    })
-  }, [])
+  // Use pre-calculated total from database (triggers will update it automatically)
+  const calculatedTotal = quote?.total_amount || 0
+  const subtotal = totalCabinetCost + totalSpecializedCost + totalHoursCost
 
   return (
     <div>
@@ -541,15 +450,6 @@ function QuoteTotalSummary({
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Quote Total</h3>
         
         <div className="space-y-3">
-          {/* Hidden components to calculate specialized items costs */}
-          {items.map(item => (
-            <ItemSpecializedCosts
-              key={`specialized-${item.id}`}
-              item={item}
-              onCostChange={(cost) => handleSpecializedCostChange(item.id, cost)}
-            />
-          ))}
-
           {/* Cabinet Costs Display */}
           {totalCabinetCost > 0 && (
             <div className="flex items-center justify-between py-2 border-b border-gray-200">
@@ -577,7 +477,7 @@ function QuoteTotalSummary({
           {/* Subtotal */}
           <div className="flex items-center justify-between py-2 border-b border-gray-200">
             <span className="text-sm font-medium text-gray-700">Subtotal:</span>
-            <span className="text-sm font-semibold text-gray-900">${(totalCabinetCost + totalSpecializedCost + totalHoursCost).toFixed(2)}</span>
+            <span className="text-sm font-semibold text-gray-900">${subtotal.toFixed(2)}</span>
           </div>
 
           {/* Markup Input */}
@@ -600,9 +500,9 @@ function QuoteTotalSummary({
                 placeholder="40"
               />
             </div>
-            {((totalCabinetCost + totalSpecializedCost + totalHoursCost) * (parseFloat(localMarkup) || 0) / 100) > 0 && (
+            {(subtotal * (parseFloat(localMarkup) || 0) / 100) > 0 && (
               <span className="text-sm font-medium text-gray-900">
-                ${((totalCabinetCost + totalSpecializedCost + totalHoursCost) * (parseFloat(localMarkup) || 0) / 100).toFixed(2)}
+                ${(subtotal * (parseFloat(localMarkup) || 0) / 100).toFixed(2)}
               </span>
             )}
           </div>
@@ -611,9 +511,14 @@ function QuoteTotalSummary({
           <div className="flex items-center justify-between pt-3 border-t-2 border-gray-400">
             <span className="text-lg font-semibold text-gray-900">Total:</span>
             <span className="text-2xl font-bold text-gray-900">
-              ${((totalCabinetCost + totalSpecializedCost + totalHoursCost) * (1 + (parseFloat(localMarkup) || 0) / 100)).toFixed(2)}
+              ${calculatedTotal.toFixed(2)}
             </span>
           </div>
+          
+          {/* Note about automatic calculation */}
+          <p className="text-xs text-gray-500 mt-2 italic">
+            * Totals are automatically calculated by the database when items change
+          </p>
         </div>
       </div>
     </div>
@@ -898,38 +803,7 @@ function ItemCabinetCosts({
   return null // This component doesn't render anything, it just calculates costs
 }
 
-function ItemSpecializedCosts({
-  item,
-  onCostChange,
-}: {
-  item: JoineryItem
-  onCostChange: (cost: number) => void
-}) {
-  const { data: specializedItems } = useSpecializedItems(item.id)
-  
-  const itemSpecializedCost = useMemo(() => {
-    if (!specializedItems || specializedItems.length === 0) return 0
-    return specializedItems.reduce((sum, item) => sum + (item.total_cost || 0), 0)
-  }, [specializedItems])
-
-  const prevCostRef = useRef<number>(0)
-  const onCostChangeRef = useRef(onCostChange)
-  
-  // Update ref when callback changes
-  useEffect(() => {
-    onCostChangeRef.current = onCostChange
-  }, [onCostChange])
-  
-  useEffect(() => {
-    // Only call onCostChange if the cost actually changed
-    if (itemSpecializedCost !== prevCostRef.current) {
-      prevCostRef.current = itemSpecializedCost
-      onCostChangeRef.current(itemSpecializedCost)
-    }
-  }, [itemSpecializedCost])
-
-  return null // This component doesn't render anything, it just calculates costs
-}
+// ItemSpecializedCosts component removed - costs are now calculated in database
 
 function QuoteJoineryItemCard({
   item,
@@ -992,7 +866,7 @@ function QuoteJoineryItemCard({
           <div className="pt-4 border-t-4 border-gray-400">
             <QuoteJoineryItemCabinets 
               joineryItem={item}
-              onTotalCostChange={(cost) => onCabinetCostChange?.(item.id, cost)}
+              onTotalCostChange={() => {}} // Costs are now calculated in database
             />
           </div>
 
