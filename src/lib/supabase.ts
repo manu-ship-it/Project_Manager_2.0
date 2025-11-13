@@ -104,6 +104,11 @@ export interface JoineryItem {
   delivered: boolean
   installed: boolean
   invoiced: boolean
+  // Calculated cost fields (populated by database functions)
+  calculated_cabinet_cost?: number | null
+  calculated_specialized_cost?: number | null
+  calculated_hours_cost?: number | null
+  calculated_total_cost?: number | null
   quote_project?: QuoteProject
 }
 
