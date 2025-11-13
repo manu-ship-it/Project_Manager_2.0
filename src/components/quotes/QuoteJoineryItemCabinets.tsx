@@ -493,7 +493,8 @@ export function QuoteJoineryItemCabinets({ joineryItem, onTotalCostChange }: Quo
     return totalCost
   }
 
-  // Calculate costs for all cabinets - MUST be before any conditional returns
+  // Calculate costs for individual cabinets (for display only)
+  // Note: Total costs come from database (joineryItem.calculated_cabinet_cost)
   const carcassSquareMeterRate = useMemo(() => {
     return calculateSquareMeterRate(joineryItem.carcass_material)
   }, [joineryItem.carcass_material])
@@ -519,6 +520,12 @@ export function QuoteJoineryItemCabinets({ joineryItem, onTotalCostChange }: Quo
     })
   }, [cabinets, carcassSquareMeterRate, joineryItem.face_material_1, joineryItem.face_material_2, joineryItem.face_material_3, joineryItem.face_material_4, joineryItem.hinge, joineryItem.drawer_hardware])
 
+  // Use database-calculated totals instead of calculating on frontend
+  // These values are updated by database triggers when cabinets change
+  const totalCabinetCost = joineryItem.calculated_cabinet_cost || 0
+  
+  // Calculate individual totals for display (these are approximations for UI only)
+  // The authoritative total is totalCabinetCost from database
   const totalCarcassCost = useMemo(() => {
     return cabinetCosts.reduce((sum, item) => sum + item.carcassCost, 0)
   }, [cabinetCosts])
@@ -527,16 +534,8 @@ export function QuoteJoineryItemCabinets({ joineryItem, onTotalCostChange }: Quo
     return cabinetCosts.reduce((sum, item) => sum + item.faceCost, 0)
   }, [cabinetCosts])
 
-  const totalCabinetCost = useMemo(() => {
-    return cabinetCosts.reduce((sum, item) => sum + item.totalCost, 0)
-  }, [cabinetCosts])
-
-  // Report total cost changes to parent
-  useEffect(() => {
-    if (onTotalCostChange) {
-      onTotalCostChange(totalCabinetCost)
-    }
-  }, [totalCabinetCost, onTotalCostChange])
+  // No longer need to report cost changes - database triggers handle this
+  // useEffect removed - costs are automatically updated by database triggers
 
   if (cabinetsLoading) {
     return (

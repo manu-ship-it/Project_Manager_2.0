@@ -1,27 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Edit, Trash2, FileText, Calendar, DollarSign, User, MapPin } from 'lucide-react'
-import { useQuotes, useDeleteQuoteProject } from '@/hooks/useQuoteProjects'
+import { Plus, Edit, FileText } from 'lucide-react'
+import { useQuotes } from '@/hooks/useQuoteProjects'
 import { QuoteForm } from './QuoteForm'
 import { QuoteProject } from '@/lib/supabase'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export function QuotesList() {
   const [showForm, setShowForm] = useState(false)
   const [editingQuote, setEditingQuote] = useState<QuoteProject | null>(null)
-  const { data: quotes, isLoading } = useQuotes()
-  const deleteQuote = useDeleteQuoteProject()
+  const { data: quotes, isLoading, error } = useQuotes()
+  const router = useRouter()
 
-  const handleEdit = (quote: QuoteProject) => {
+  const handleEdit = (e: React.MouseEvent, quote: QuoteProject) => {
+    e.stopPropagation() // Prevent row click
     setEditingQuote(quote)
     setShowForm(true)
   }
 
-  const handleDelete = async (quote: QuoteProject) => {
-    if (confirm(`Are you sure you want to delete quote "${quote.quote_num || quote.name}"?`)) {
-      await deleteQuote.mutateAsync(quote.id)
-    }
+  const handleRowClick = (quoteId: string) => {
+    router.push(`/quotes/${quoteId}`)
   }
 
   const handleFormClose = () => {
@@ -32,25 +31,24 @@ export function QuotesList() {
   const handleFormSuccess = (quoteId: string) => {
     setShowForm(false)
     setEditingQuote(null)
-    // Navigate to quote detail page
-    window.location.href = `/quotes/${quoteId}`
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'draft': return 'bg-gray-100 text-gray-800'
-      case 'sent': return 'bg-blue-100 text-blue-800'
-      case 'accepted': return 'bg-green-100 text-green-800'
-      case 'rejected': return 'bg-red-100 text-red-800'
-      case 'expired': return 'bg-yellow-100 text-yellow-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
+    // Don't navigate - just close the form and refresh the list
   }
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <p className="text-red-600 mb-2">Error loading quotes</p>
+          <p className="text-sm text-gray-600">{error instanceof Error ? error.message : 'Unknown error'}</p>
+        </div>
       </div>
     )
   }
@@ -72,18 +70,61 @@ export function QuotesList() {
         </button>
       </div>
 
-      {/* Quotes List */}
+      {/* Quotes List - Table Format */}
       {quotes && quotes.length > 0 ? (
-        <div className="space-y-4">
-          {quotes.map((quote) => (
-            <QuoteCard
-              key={quote.id}
-              quote={quote}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              statusColor={getStatusColor(quote.status || 'draft')}
-            />
-          ))}
+        <div className="bg-white border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Quote Number
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Project / Client
+                </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Quote Sell Value
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {quotes.map((quote) => (
+                <tr
+                  key={quote.id}
+                  onClick={() => handleRowClick(quote.id)}
+                  className="hover:bg-gray-50 cursor-pointer transition-colors"
+                >
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">
+                      {quote.quote_num || '-'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-sm text-gray-900">
+                      {quote.name || '-'} {quote.customer?.company_name ? `- ${quote.customer.company_name}` : ''}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-right">
+                    <div className="text-sm font-medium text-gray-900">
+                      ${quote.total_amount ? quote.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-center">
+                    <button
+                      onClick={(e) => handleEdit(e, quote)}
+                      className="text-gray-400 hover:text-blue-600 transition-colors p-1"
+                      title="Edit quote"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="text-center py-12">
@@ -110,115 +151,6 @@ export function QuotesList() {
           onSuccess={handleFormSuccess}
         />
       )}
-    </div>
-  )
-}
-
-function QuoteCard({ 
-  quote, 
-  onEdit, 
-  onDelete,
-  statusColor
-}: { 
-  quote: QuoteProject
-  onEdit: (quote: QuoteProject) => void
-  onDelete: (quote: QuoteProject) => void
-  statusColor: string
-}) {
-  return (
-    <div className="bg-white border rounded-lg p-6 hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex-1">
-          <div className="flex items-center space-x-3 mb-2">
-            <Link
-              href={quote.id ? `/quotes/${quote.id}` : '#'}
-              className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors"
-            >
-              {quote.quote_num || quote.name || 'Quote'}
-            </Link>
-            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusColor}`}>
-              {quote.status || 'draft'}
-            </span>
-          </div>
-          
-          <h4 className="text-lg font-semibold text-gray-900 mb-3">
-            {quote.name}
-          </h4>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Customer */}
-            <div className="flex items-center space-x-2">
-              <User className="h-4 w-4 text-gray-400" />
-              <div>
-                <span className="text-sm text-gray-600">Customer:</span>
-                <p className="font-medium text-gray-900">{quote.customer?.company_name || '-'}</p>
-              </div>
-            </div>
-
-            {/* Quote Date */}
-            {quote.quote_date && (
-              <div className="flex items-center space-x-2">
-                <Calendar className="h-4 w-4 text-gray-400" />
-                <div>
-                  <span className="text-sm text-gray-600">Date:</span>
-                  <p className="font-medium text-gray-900">
-                    {new Date(quote.quote_date).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Total Amount */}
-            {quote.total_amount && quote.total_amount > 0 && (
-              <div className="flex items-center space-x-2">
-                <DollarSign className="h-4 w-4 text-gray-400" />
-                <div>
-                  <span className="text-sm text-gray-600">Total:</span>
-                  <p className="font-medium text-gray-900">
-                    ${quote.total_amount.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Address */}
-            {quote.address && (
-              <div className="flex items-center space-x-2">
-                <MapPin className="h-4 w-4 text-gray-400" />
-                <div>
-                  <span className="text-sm text-gray-600">Address:</span>
-                  <p className="font-medium text-gray-900 truncate">{quote.address}</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center space-x-2 ml-4">
-          <Link
-            href={`/quotes/${quote.id}`}
-            className="text-gray-400 hover:text-blue-600 transition-colors"
-            title="View quote"
-          >
-            <FileText className="h-4 w-4" />
-          </Link>
-          <button
-            onClick={() => onEdit(quote)}
-            className="text-gray-400 hover:text-blue-600 transition-colors"
-            title="Edit quote"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onDelete(quote)}
-            className="text-gray-400 hover:text-red-600 transition-colors"
-            title="Delete quote"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
     </div>
   )
 }
