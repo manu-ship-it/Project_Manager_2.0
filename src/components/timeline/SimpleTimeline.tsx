@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { Project } from '@/lib/supabase'
-import { useUpdateProject } from '@/hooks/useProjects'
+import { useUpdateQuoteProject } from '@/hooks/useQuoteProjects'
 
 interface SimpleTimelineProps {
   projects: Project[]
@@ -27,7 +27,7 @@ export function SimpleTimeline({ projects, onProjectUpdate }: SimpleTimelineProp
   
   const timelineRef = useRef<HTMLDivElement>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const updateProject = useUpdateProject()
+  const updateProject = useUpdateQuoteProject()
   const animationFrameRef = useRef<number | null>(null)
   const lastUpdateTimeRef = useRef<number>(0)
   const lockedScrollLeftRef = useRef<number>(0)

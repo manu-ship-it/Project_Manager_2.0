@@ -6,7 +6,7 @@ import { useProjectTasks, useUpdateProjectTask, useDeleteProjectTask } from '@/h
 import { ProjectTaskForm } from './ProjectTaskForm'
 import { supabase, ProjectTask } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
-import { useProjects } from '@/hooks/useProjects'
+import { useProjects } from '@/hooks/useQuoteProjects'
 
 interface ProjectTasksListProps {
   projectId: string
