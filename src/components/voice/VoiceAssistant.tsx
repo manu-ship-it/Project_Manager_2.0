@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { X, Mic, MicOff, Loader2 } from 'lucide-react'
-import { useProjects, useCreateProject, useUpdateProject } from '@/hooks/useProjects'
+import { useProjects, useCreateQuoteProject, useUpdateQuoteProject } from '@/hooks/useQuoteProjects'
 import { useCreateProjectTask } from '@/hooks/useProjectTasks'
 import { useCreateMaterial } from '@/hooks/useMaterials'
 import { supabase } from '@/lib/supabase'
@@ -34,8 +34,8 @@ export function VoiceAssistant({ onClose, onProjectUpdate }: VoiceAssistantProps
   const lastAssistantMessageRef = useRef<string>('') // Track last assistant message to prevent duplicates
 
   const { data: projects } = useProjects()
-  const createProject = useCreateProject()
-  const updateProject = useUpdateProject()
+  const createProject = useCreateQuoteProject()
+  const updateProject = useUpdateQuoteProject()
   const createTask = useCreateProjectTask()
   const createMaterial = useCreateMaterial()
 

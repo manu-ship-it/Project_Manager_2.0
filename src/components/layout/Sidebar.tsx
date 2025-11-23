@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { FolderKanban, Calendar, FileText, Menu, X, ListChecks, Wrench, Box, Package, Users } from 'lucide-react'
+import { FolderKanban, Calendar, FileText, Menu, X, ListChecks, Wrench, Box, Package, Users, LogOut } from 'lucide-react'
 
 const mainMenuItems = [
   {
     name: 'Projects',
-    href: '/',
+    href: '/dashboard',
     icon: FolderKanban,
   },
   {
@@ -97,9 +97,8 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0 z-40 overflow-y-auto transition-transform duration-300 ease-in-out ${
-          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
-        }`}
+        className={`w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0 z-40 overflow-y-auto transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
       >
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
@@ -113,48 +112,21 @@ export function Sidebar() {
             </button>
           </div>
         </div>
-        <nav className="p-4">
-          {/* Main Menu Items */}
-          <ul className="space-y-2">
-            {mainMenuItems.map((item) => {
-              const Icon = item.icon
-              const isActive = pathname === item.href
-              return (
-                <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                    <span>{item.name}</span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-
-          {/* Libraries Section */}
-          <div className="mt-6 pt-6 border-t border-gray-200">
-            <h3 className="px-4 mb-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              Libraries
-            </h3>
+        <nav className="p-4 flex flex-col h-[calc(100vh-81px)]">
+          <div className="flex-1">
+            {/* Main Menu Items */}
             <ul className="space-y-2">
-              {libraryMenuItems.map((item) => {
+              {mainMenuItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
                 return (
                   <li key={item.name}>
                     <Link
                       href={item.href}
-                      className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                        isActive
-                          ? 'bg-blue-50 text-blue-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                      className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
+                        ? 'bg-blue-50 text-blue-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                        }`}
                     >
                       <Icon className="h-5 w-5" />
                       <span>{item.name}</span>
@@ -163,6 +135,49 @@ export function Sidebar() {
                 )
               })}
             </ul>
+
+            {/* Libraries Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="px-4 mb-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Libraries
+              </h3>
+              <ul className="space-y-2">
+                {libraryMenuItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href
+                  return (
+                    <li key={item.name}>
+                      <Link
+                        href={item.href}
+                        className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
+                          ? 'bg-blue-50 text-blue-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                      >
+                        <Icon className="h-5 w-5" />
+                        <span>{item.name}</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          </div>
+
+          {/* Sign Out Button */}
+          <div className="pt-4 border-t border-gray-200 mt-auto">
+            <button
+              onClick={async () => {
+                const { createClient } = await import('@/utils/supabase/client')
+                const supabase = createClient()
+                await supabase.auth.signOut()
+                window.location.href = '/'
+              }}
+              className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="h-5 w-5" />
+              <span>Sign Out</span>
+            </button>
           </div>
         </nav>
       </aside>
