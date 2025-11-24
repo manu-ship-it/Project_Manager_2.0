@@ -117,7 +117,7 @@ export interface JoineryItem {
 // =====================================================
 export interface ProjectTask {
   id: string
-  project_id: string // TODO: Update to quote_proj_id in future
+  project_id: string // References quote_project.id
   task_description: string
   is_completed: boolean
   is_flagged: boolean
@@ -197,7 +197,7 @@ export interface Hardware {
 // =====================================================
 // Template Cabinet Library (Renamed from StandardCabinet)
 // =====================================================
-export type CabinetType = 
+export type CabinetType =
   | 'door'
   | 'drawer'
   | 'open'
@@ -376,3 +376,16 @@ export type Quote = QuoteProject
 export type StandardCabinet = TemplateCabinet
 
 
+// =====================================================
+// Ideas (Thoughts Pad)
+// =====================================================
+export interface Idea {
+  id: string
+  title: string
+  content: string
+  category: 'Random thoughts' | 'Family' | 'Home' | 'Frameworks' | 'Famous Phrases' | 'Business Ideas' | 'Others'
+  source: string | null
+  created_at: string
+  updated_at: string
+  created_by: string | null
+}

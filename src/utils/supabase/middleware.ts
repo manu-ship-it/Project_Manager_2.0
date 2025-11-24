@@ -45,16 +45,18 @@ export async function updateSession(request: NextRequest) {
     ) {
         // no user, potentially respond by redirecting the user to the login page
         const url = request.nextUrl.clone()
-        url.pathname = '/'
+        url.pathname = '/login'
+        url.searchParams.set('next', request.nextUrl.pathname)
         return NextResponse.redirect(url)
     }
 
     // If user is logged in and tries to access the root (login page), redirect to dashboard
-    if (user && request.nextUrl.pathname === '/') {
-        const url = request.nextUrl.clone()
-        url.pathname = '/dashboard'
-        return NextResponse.redirect(url)
-    }
+    // REMOVED: We now have a landing page at / for authenticated users
+    // if (user && request.nextUrl.pathname === '/') {
+    //     const url = request.nextUrl.clone()
+    //     url.pathname = '/dashboard'
+    //     return NextResponse.redirect(url)
+    // }
 
     return supabaseResponse
 }
