@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   eslint: {
     // Don't fail build on ESLint errors - this is critical for Railway deployment
     ignoreDuringBuilds: true,
