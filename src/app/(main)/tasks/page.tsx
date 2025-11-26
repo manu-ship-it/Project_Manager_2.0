@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Plus, Flag } from 'lucide-react'
+import { Check, Plus, Flag, Pencil, X, Save } from 'lucide-react'
 import { useProjects } from '@/hooks/useQuoteProjects'
 import { useUpdateProjectTask, useCreateProjectTask } from '@/hooks/useProjectTasks'
 import { supabase, ProjectTask } from '@/lib/supabase'
@@ -21,13 +21,13 @@ export default function TasksPage() {
     queryKey: ['all-tasks', projectIds],
     queryFn: async () => {
       if (projectIds.length === 0) return []
-      
+
       const { data, error } = await supabase
         .from('project_tasks')
         .select('*')
         .in('project_id', projectIds)
         .order('created_at', { ascending: false })
-      
+
       if (error) throw error
       return data as ProjectTask[]
     },
@@ -57,7 +57,7 @@ export default function TasksPage() {
 
   const handleAddTask = async (projectId: string, taskDescription: string) => {
     if (!taskDescription.trim()) return
-    
+
     try {
       await createTask.mutateAsync({
         project_id: projectId,
@@ -132,7 +132,7 @@ export default function TasksPage() {
           <div className="space-y-2">
             {nonCompletedProjects.map((project) => {
               const projectTasks = tasksByProject[project.id] || []
-              
+
               // Sort tasks: flagged first, then incomplete, then completed
               const sortedTasks = [...projectTasks].sort((a, b) => {
                 // First priority: flagged tasks
@@ -178,17 +178,20 @@ interface ProjectTaskSectionProps {
   canFlagMore: boolean
 }
 
-function ProjectTaskSection({ 
-  project, 
-  tasks, 
+function ProjectTaskSection({
+  project,
+  tasks,
   onToggleTask,
   onToggleFlag,
-  onAddTask, 
+  onAddTask,
   isUpdating,
   isCreating,
   canFlagMore
 }: ProjectTaskSectionProps) {
   const [newTaskText, setNewTaskText] = useState('')
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [editDescription, setEditDescription] = useState('')
+  const updateTask = useUpdateProjectTask()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -198,10 +201,35 @@ function ProjectTaskSection({
     }
   }
 
+  const handleStartEdit = (task: ProjectTask) => {
+    setEditingTaskId(task.id)
+    setEditDescription(task.task_description)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingTaskId(null)
+    setEditDescription('')
+  }
+
+  const handleSaveEdit = async (taskId: string) => {
+    if (!editDescription.trim()) return
+
+    try {
+      await updateTask.mutateAsync({
+        id: taskId,
+        task_description: editDescription.trim(),
+      })
+      setEditingTaskId(null)
+      setEditDescription('')
+    } catch (error) {
+      console.error('Error updating task:', error)
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-sm border p-3">
       <h2 className="text-sm font-semibold text-gray-900 mb-1.5">{project.name}</h2>
-      
+
       {tasks.length === 0 ? (
         <p className="text-xs text-gray-500 italic mb-2">No tasks</p>
       ) : (
@@ -209,50 +237,85 @@ function ProjectTaskSection({
           {tasks.map((task) => (
             <div
               key={task.id}
-              className={`flex items-center space-x-2 px-2 py-1 rounded ${
-                task.is_flagged ? 'bg-red-50 border-l-2 border-red-500' : ''
-              }`}
+              className={`flex items-center space-x-2 px-2 py-1 rounded group ${task.is_flagged ? 'bg-red-50 border-l-2 border-red-500' : ''
+                }`}
             >
               <button
                 onClick={() => onToggleTask(task)}
                 disabled={isUpdating}
-                className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${
-                  task.is_completed
-                    ? 'bg-green-500 border-green-500 text-white'
-                    : 'border-gray-300 hover:border-green-500'
-                }`}
+                className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors flex-shrink-0 ${task.is_completed
+                  ? 'bg-green-500 border-green-500 text-white'
+                  : 'border-gray-300 hover:border-green-500'
+                  }`}
               >
                 {task.is_completed && <Check className="h-3 w-3" />}
               </button>
-              
-              <span
-                className={`flex-1 text-xs ${
-                  task.is_completed
-                    ? 'text-gray-500 line-through'
-                    : task.is_flagged
-                    ? 'text-red-900 font-medium'
-                    : 'text-gray-900'
-                }`}
-              >
-                {task.task_description}
-              </span>
-              
+
+              {editingTaskId === task.id ? (
+                <div className="flex-1 flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveEdit(task.id)
+                      if (e.key === 'Escape') handleCancelEdit()
+                    }}
+                  />
+                  <button
+                    onClick={() => handleSaveEdit(task.id)}
+                    disabled={isUpdating || !editDescription.trim()}
+                    className="text-green-600 hover:text-green-700"
+                  >
+                    <Save className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <span
+                    className={`flex-1 text-xs ${task.is_completed
+                      ? 'text-gray-500 line-through'
+                      : task.is_flagged
+                        ? 'text-red-900 font-medium'
+                        : 'text-gray-900'
+                      }`}
+                  >
+                    {task.task_description}
+                  </span>
+
+                  <button
+                    onClick={() => handleStartEdit(task)}
+                    className="text-gray-400 hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100"
+                    title="Edit task"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </>
+              )}
+
               <button
                 onClick={() => onToggleFlag(task)}
                 disabled={isUpdating || (!task.is_flagged && !canFlagMore)}
-                className={`flex-shrink-0 transition-colors ${
-                  task.is_flagged
-                    ? 'text-red-600 hover:text-red-700'
-                    : !canFlagMore
+                className={`flex-shrink-0 transition-colors ${task.is_flagged
+                  ? 'text-red-600 hover:text-red-700'
+                  : !canFlagMore
                     ? 'text-gray-300 cursor-not-allowed'
                     : 'text-gray-400 hover:text-red-500'
-                }`}
+                  }`}
                 title={
-                  task.is_flagged 
-                    ? 'Unflag task' 
-                    : !canFlagMore 
-                    ? 'Maximum of 3 tasks can be flagged'
-                    : 'Flag task'
+                  task.is_flagged
+                    ? 'Unflag task'
+                    : !canFlagMore
+                      ? 'Maximum of 3 tasks can be flagged'
+                      : 'Flag task'
                 }
               >
                 <Flag className={`h-3 w-3 ${task.is_flagged ? 'fill-current' : ''}`} />
@@ -261,7 +324,7 @@ function ProjectTaskSection({
           ))}
         </div>
       )}
-      
+
       {/* Add Task Input */}
       <form onSubmit={handleSubmit} className="flex items-center space-x-2 pt-1 border-t border-gray-100">
         <input

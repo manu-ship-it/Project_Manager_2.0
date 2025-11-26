@@ -5,7 +5,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { X, Save } from 'lucide-react'
-import { useCreateProjectTask } from '@/hooks/useProjectTasks'
+import { useCreateProjectTask, useUpdateProjectTask } from '@/hooks/useProjectTasks'
+import { ProjectTask } from '@/lib/supabase'
 
 const taskSchema = z.object({
   task_description: z.string().min(1, 'Task description is required'),
@@ -15,13 +16,15 @@ type TaskFormData = z.infer<typeof taskSchema>
 
 interface ProjectTaskFormProps {
   projectId: string
+  task?: ProjectTask
   onClose: () => void
   onSuccess: () => void
 }
 
-export function ProjectTaskForm({ projectId, onClose, onSuccess }: ProjectTaskFormProps) {
+export function ProjectTaskForm({ projectId, task, onClose, onSuccess }: ProjectTaskFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const createTask = useCreateProjectTask()
+  const updateTask = useUpdateProjectTask()
 
   const {
     register,
@@ -29,20 +32,30 @@ export function ProjectTaskForm({ projectId, onClose, onSuccess }: ProjectTaskFo
     formState: { errors },
   } = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
+    defaultValues: {
+      task_description: task?.task_description || '',
+    },
   })
 
   const onSubmit = async (data: TaskFormData) => {
     setIsSubmitting(true)
     try {
-      await createTask.mutateAsync({
-        ...data,
-        project_id: projectId,
-        is_completed: false,
-        is_flagged: false,
-      })
+      if (task) {
+        await updateTask.mutateAsync({
+          id: task.id,
+          task_description: data.task_description,
+        })
+      } else {
+        await createTask.mutateAsync({
+          ...data,
+          project_id: projectId,
+          is_completed: false,
+          is_flagged: false,
+        })
+      }
       onSuccess()
     } catch (error) {
-      console.error('Error creating task:', error)
+      console.error('Error saving task:', error)
     } finally {
       setIsSubmitting(false)
     }
@@ -53,7 +66,7 @@ export function ProjectTaskForm({ projectId, onClose, onSuccess }: ProjectTaskFo
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">Add Task</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{task ? 'Edit Task' : 'Add Task'}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"
@@ -95,7 +108,7 @@ export function ProjectTaskForm({ projectId, onClose, onSuccess }: ProjectTaskFo
               className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Save className="h-4 w-4" />
-              <span>{isSubmitting ? 'Adding...' : 'Add Task'}</span>
+              <span>{isSubmitting ? 'Saving...' : (task ? 'Update Task' : 'Add Task')}</span>
             </button>
           </div>
         </form>
