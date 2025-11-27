@@ -53,6 +53,8 @@ export function IdeaForm({ onCancel, onSuccess, initialData }: IdeaFormProps) {
                 await createIdea.mutateAsync({
                     ...data,
                     source: data.source || null,
+                    position: 0,
+                    folder_id: null,
                 })
             }
             if (onSuccess) onSuccess()
