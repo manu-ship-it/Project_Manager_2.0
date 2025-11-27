@@ -64,8 +64,8 @@ export function IdeaForm({ onCancel, onSuccess, initialData }: IdeaFormProps) {
     }
 
     return (
-        <div className="max-w-2xl mx-auto p-8">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="w-full mx-auto p-4 md:p-8">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
                 {/* Header */}
                 <div className="p-6 border-b border-gray-100 bg-gray-50/50">
                     <h2 className="text-xl font-semibold text-gray-900">
@@ -74,7 +74,7 @@ export function IdeaForm({ onCancel, onSuccess, initialData }: IdeaFormProps) {
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+                <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6 flex-1 overflow-y-auto">
                     {/* Title */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -83,7 +83,7 @@ export function IdeaForm({ onCancel, onSuccess, initialData }: IdeaFormProps) {
                         <input
                             type="text"
                             {...register('title')}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-gray-900"
                             placeholder="What's on your mind?"
                         />
                         {errors.title && (
@@ -98,7 +98,7 @@ export function IdeaForm({ onCancel, onSuccess, initialData }: IdeaFormProps) {
                         </label>
                         <select
                             {...register('category')}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all bg-white"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all bg-white text-gray-900"
                         >
                             <option value="Random thoughts">Random thoughts</option>
                             <option value="Family">Family</option>
@@ -121,20 +121,20 @@ export function IdeaForm({ onCancel, onSuccess, initialData }: IdeaFormProps) {
                         <input
                             type="text"
                             {...register('source')}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-gray-900"
                             placeholder="e.g., Book, Conversation, Dream..."
                         />
                     </div>
 
                     {/* Content */}
-                    <div>
+                    <div className="flex-1 flex flex-col">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                             Content *
                         </label>
                         <textarea
                             {...register('content')}
-                            rows={8}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all resize-none"
+                            rows={12}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all resize-none text-gray-900 flex-1 min-h-[200px]"
                             placeholder="Elaborate on your idea..."
                         />
                         {errors.content && (
