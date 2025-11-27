@@ -8,7 +8,7 @@ export default function ThoughtsLayout({
     return (
         <div className="flex min-h-screen bg-gray-50">
             <ThoughtsSidebar />
-            <main className="flex-1 ml-80 min-h-screen">
+            <main className="flex-1 md:ml-80 min-h-screen transition-all duration-300">
                 {children}
             </main>
         </div>

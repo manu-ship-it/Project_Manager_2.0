@@ -65,6 +65,28 @@ export function useUpdateIdea() {
     })
 }
 
+export function useUpdateIdeaPosition() {
+    const queryClient = useQueryClient()
+    const supabase = createClient()
+
+    return useMutation({
+        mutationFn: async ({ id, position, folder_id }: { id: string; position: number; folder_id: string | null }) => {
+            const { data, error } = await supabase
+                .from('ideas')
+                .update({ position, folder_id })
+                .eq('id', id)
+                .select()
+                .single()
+
+            if (error) throw error
+            return data as Idea
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['ideas'] })
+        },
+    })
+}
+
 export function useDeleteIdea() {
     const queryClient = useQueryClient()
     const supabase = createClient()

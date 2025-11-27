@@ -388,4 +388,14 @@ export interface Idea {
   created_at: string
   updated_at: string
   created_by: string | null
+  folder_id: string | null
+  position: number
+}
+
+export interface Folder {
+  id: string
+  name: string
+  user_id: string
+  created_at: string
+  position: number
 }
