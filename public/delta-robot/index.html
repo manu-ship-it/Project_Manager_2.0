@@ -1,14 +1,434 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/delta-robot/delta.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Delta Robot Simulator</title>
-    <script type="module" crossorigin src="/delta-robot/assets/index-D2KcSN2w.js"></script>
-    <link rel="stylesheet" crossorigin href="/delta-robot/assets/index-Cq1huCkP.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/delta-robot/delta.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- SEO Meta Tags -->
+  <title>Delta Robot Kinematics Calculator & 3D Workspace Simulator</title>
+  <meta name="description"
+    content="Free interactive tool for Delta Robot Inverse and Forward kinematics. Calculate joint angles, visualize workspace geometry, and export results for robotics engineering and design." />
+
+  <!-- Open Graph / Social Media Meta Tags -->
+  <meta property="og:title" content="Delta Robot Kinematics Calculator & 3D Workspace Simulator" />
+  <meta property="og:description"
+    content="Free interactive tool for Delta Robot Inverse and Forward kinematics. Calculate joint angles, visualize workspace geometry, and export results for robotics engineering and design." />
+  <meta property="og:type" content="website" />
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Delta Robot Kinematics Calculator",
+      "applicationCategory": "EngineeringApplication",
+      "description": "Interactive kinematics simulator for Delta parallel robots. Calculate inverse and forward kinematics, visualize 3D workspace, and export geometric parameters.",
+      "operatingSystem": "Web Browser",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Inverse Kinematics Calculation",
+        "Forward Kinematics Calculation",
+        "3D Workspace Visualization",
+        "Real-time Joint Angle Computation",
+        "Geometric Parameter Configuration",
+        "Data Export Functionality"
+      ]
+    }
+    </script>
+
+  <script type="module" crossorigin src="/delta-robot/assets/index-D2KcSN2w.js"></script>
+  <link rel="stylesheet" crossorigin href="/delta-robot/assets/index-Cq1huCkP.css">
+
+  <style>
+    /* Ensure full height for React app */
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #root {
+      height: 100%;
+      width: 100%;
+    }
+
+    /* Top-right About Button */
+    .about-button {
+      position: fixed;
+      top: 14px;
+      right: 20px;
+      background: rgba(59, 130, 246, 0.95);
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 10000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .about-button:hover {
+      background: rgba(59, 130, 246, 1);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Side Panel Overlay */
+    .seo-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 10001;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .seo-overlay.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    /* Side Panel */
+    .seo-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 500px;
+      max-width: 90vw;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      z-index: 10002;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .seo-panel.visible {
+      transform: translateX(0);
+    }
+
+    .seo-panel-header {
+      position: sticky;
+      top: 0;
+      background: #1a1a1a;
+      border-bottom: 2px solid #3b82f6;
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 1;
+    }
+
+    .seo-panel-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0;
+    }
+
+    .close-button {
+      background: transparent;
+      border: none;
+      color: #888;
+      font-size: 28px;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .close-button:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .seo-panel-content {
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .seo-panel-content h2 {
+      font-size: 1.5rem;
+      margin: 30px 0 15px 0;
+      color: #fff;
+      border-bottom: 1px solid #444;
+      padding-bottom: 8px;
+    }
+
+    .seo-panel-content h3 {
+      font-size: 1.2rem;
+      margin: 20px 0 10px 0;
+      color: #3b82f6;
+    }
+
+    .seo-panel-content p {
+      margin: 0 0 12px 0;
+      color: #d0d0d0;
+    }
+
+    .seo-panel-content strong {
+      color: #60a5fa;
+      font-weight: 600;
+    }
+
+    .seo-panel-content ul,
+    .seo-panel-content ol {
+      margin: 0 0 15px 0;
+      padding-left: 25px;
+      color: #d0d0d0;
+    }
+
+    .seo-panel-content li {
+      margin-bottom: 8px;
+    }
+
+    .share-button {
+      display: inline-block;
+      padding: 10px 18px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      margin: 10px 0 20px 0;
+      transition: all 0.2s;
+    }
+
+    .share-button:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+
+    /* Hidden SEO content for crawlers */
+    .seo-hidden {
+      position: absolute;
+      left: -10000px;
+      top: auto;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }
+
+    @media (max-width: 768px) {
+      .about-button {
+        top: 10px;
+        right: 10px;
+        padding: 8px 16px;
+        font-size: 13px;
+      }
+
+      .seo-panel {
+        width: 100%;
+        max-width: 100vw;
+      }
+
+      .seo-panel-title {
+        font-size: 1.3rem;
+      }
+
+      .seo-panel-content h2 {
+        font-size: 1.3rem;
+      }
+
+      .seo-panel-content h3 {
+        font-size: 1.1rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Hidden H1 for SEO -->
+  <h1 class="seo-hidden">Delta Robot Kinematics Calculator & 3D Workspace Simulator</h1>
+
+  <!-- React Application - Full Screen -->
+  <div id="root"></div>
+
+  <!-- About This Tool Button -->
+  <button class="about-button" onclick="openSEOPanel()">
+    <span>ℹ️</span>
+    <span>About This Tool</span>
+  </button>
+
+  <!-- Side Panel Overlay -->
+  <div class="seo-overlay" id="seoOverlay" onclick="closeSEOPanel()"></div>
+
+  <!-- Side Panel -->
+  <div class="seo-panel" id="seoPanel">
+    <div class="seo-panel-header">
+      <h2 class="seo-panel-title">About This Tool</h2>
+      <button class="close-button" onclick="closeSEOPanel()">&times;</button>
+    </div>
+
+    <div class="seo-panel-content">
+      <p style="font-size: 1.05rem; margin-bottom: 20px;">Professional 3D workspace simulator for parallel linkage
+        robotics. Calculate <strong>inverse kinematics</strong> and <strong>forward kinematics</strong> for Delta robot
+        configurations with real-time visualization.</p>
+
+      <button class="share-button" onclick="copyURL()">📋 Share this Tool</button>
+
+      <h3>How to Use This Calculator</h3>
+      <ol>
+        <li><strong>Configure Robot Parameters</strong>: Enter your Delta robot's geometric specifications including
+          base radius, bicep length (upper arm), and forearm length.</li>
+        <li><strong>Input Target Coordinates</strong>: Specify the desired <strong>end-effector</strong> position in 3D
+          space (X, Y, Z coordinates in mm).</li>
+        <li><strong>Calculate Kinematics</strong>: The tool automatically computes joint angles using inverse kinematics
+          equations for the <strong>parallel linkage</strong> mechanism.</li>
+        <li><strong>Visualize Workspace</strong>: View the 3D representation of your Delta robot's reachable workspace
+          and current configuration.</li>
+        <li><strong>Export Results</strong>: Download calculated parameters and joint angles for use in your robotics
+          control system.</li>
+      </ol>
+
+      <h2>Technical Reference</h2>
+
+      <h3>Understanding Delta Robot Geometry</h3>
+      <p>A Delta robot is a type of parallel manipulator characterized by three arms connected to universal joints at
+        the base. Each arm consists of two segments: a <strong>bicep</strong> (upper arm) attached to an actuated
+        revolute joint, and a <strong>forearm</strong> (lower arm) connected via a parallelogram linkage. This unique
+        configuration maintains the <strong>end-effector</strong> orientation parallel to the base throughout the
+        workspace, enabling high-speed, precise motion with excellent <strong>rotational symmetry</strong>.</p>
+      <p>The geometry is defined by three critical dimensional parameters:</p>
+      <ul>
+        <li><strong>Base Radius (r_b)</strong>: Distance from the center to each actuated joint on the fixed base
+          platform</li>
+        <li><strong>Bicep Length (L_1)</strong>: Length of the upper arm segment from the actuated joint to the elbow
+        </li>
+        <li><strong>Forearm Length (L_2)</strong>: Length of the parallelogram linkage from elbow to end-effector
+          connection</li>
+      </ul>
+
+      <h3>Inverse Kinematics vs. Forward Kinematics</h3>
+      <p><strong>Inverse Kinematics (IK)</strong> solves for the joint angles (θ₁, θ₂, θ₃) required to position the
+        <strong>end-effector</strong> at a specified Cartesian coordinate (X, Y, Z). This is the most common calculation
+        in robot control, as it translates desired tool positions into motor commands. For Delta robots, the IK solution
+        involves solving three coupled geometric constraints derived from the sphere-sphere intersection of the forearm
+        reach spaces.
+      </p>
+      <p><strong>Forward Kinematics (FK)</strong> determines the end-effector position given a set of joint angles.
+        While computationally more complex for <strong>parallel linkage</strong> systems than serial manipulators, FK is
+        essential for simulation, verification, and workspace analysis. The solution requires iterative numerical
+        methods to resolve the intersection of three spherical surfaces.</p>
+
+      <h3>Geometric Parameters: Base, Biceps, and Forearms</h3>
+      <p>The workspace volume and reachability of a Delta robot are directly determined by the ratios between its
+        geometric parameters:</p>
+      <ul>
+        <li><strong>Base Radius</strong>: Larger base radius increases lateral workspace but reduces vertical reach
+          depth</li>
+        <li><strong>Biceps Length</strong>: Affects the arm's reach envelope; typical ratios to forearm length range
+          from 1:2 to 1:3</li>
+        <li><strong>Forearms Length</strong>: Primary determinant of overall reach; longer forearms extend workspace but
+          may reduce stiffness</li>
+        <li><strong>End-Effector Radius</strong>: Smaller end-effector platform relative to base increases dexterity
+          within the workspace</li>
+      </ul>
+      <p>Understanding these relationships is crucial for optimal Delta robot design for specific applications, whether
+        high-speed pick-and-place, 3D printing, or precision assembly tasks.</p>
+
+      <h3>Workspace Point Cloud Visualization</h3>
+      <p>The <strong>point cloud</strong> displayed in the 3D viewport represents the complete <strong>reachable
+          workspace</strong> of your Delta robot configuration. Each point indicates a position where the end-effector
+        can be positioned given the current geometric parameters (base radius, bicep length, and forearm length).</p>
+      <p>The point cloud is generated by systematically sampling valid end-effector positions throughout the robot's
+        operational volume. This visualization helps engineers:</p>
+      <ul>
+        <li><strong>Identify workspace boundaries</strong>: See the exact limits of where the robot can reach</li>
+        <li><strong>Evaluate workspace shape</strong>: Understand how the reachable volume changes with different
+          parameters</li>
+        <li><strong>Plan tool paths</strong>: Ensure desired positions fall within the accessible workspace</li>
+        <li><strong>Optimize design</strong>: Visualize how parameter changes affect the working envelope</li>
+      </ul>
+
+      <h3>Configuration Comparison Feature</h3>
+      <p>The comparison mode allows you to <strong>overlay two different robot configurations</strong> simultaneously,
+        displaying both workspace point clouds in the same 3D view. This powerful feature enables direct visual
+        comparison of how geometric parameter changes affect the workspace.</p>
+      <p><strong>How to use comparison mode:</strong></p>
+      <ol>
+        <li>Configure your first robot design (Configuration A) with desired parameters</li>
+        <li>Enable comparison mode to create a second configuration (Configuration B)</li>
+        <li>Adjust parameters in Configuration B to explore alternative designs</li>
+        <li>Both workspace clouds are displayed with distinct colors for easy differentiation</li>
+      </ol>
+      <p><strong>Why use comparison mode:</strong></p>
+      <ul>
+        <li><strong>Design optimization</strong>: Quickly evaluate how increasing bicep or forearm length expands the
+          workspace</li>
+        <li><strong>Trade-off analysis</strong>: Compare compact vs. extended reach configurations side-by-side</li>
+        <li><strong>Client presentations</strong>: Demonstrate workspace differences between proposed robot variants
+        </li>
+        <li><strong>Constraint validation</strong>: Verify that parameter modifications maintain required reach zones
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Open SEO panel
+    function openSEOPanel() {
+      document.getElementById('seoPanel').classList.add('visible');
+      document.getElementById('seoOverlay').classList.add('visible');
+    }
+
+    // Close SEO panel
+    function closeSEOPanel() {
+      document.getElementById('seoPanel').classList.remove('visible');
+      document.getElementById('seoOverlay').classList.remove('visible');
+    }
+
+    // Copy URL to clipboard
+    function copyURL() {
+      navigator.clipboard.writeText(window.location.href).then(function () {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '✓ URL Copied!';
+        btn.style.background = '#10b981';
+        setTimeout(function () {
+          btn.textContent = originalText;
+          btn.style.background = '#3b82f6';
+        }, 2000);
+      }).catch(function (err) {
+        alert('Failed to copy URL: ' + err);
+      });
+    }
+
+    // Close panel on Escape key
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        closeSEOPanel();
+      }
+    });
+  </script>
+</body>
+
 </html>
